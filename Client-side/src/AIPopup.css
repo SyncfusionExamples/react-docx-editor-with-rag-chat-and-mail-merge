@@ -1,0 +1,351 @@
+.ai-assist-dialog,
+.e-stop-generating-dialog {
+  max-height: none !important;
+}
+
+.e-dlg-container.e-smart-editor-dialog,
+.ai-settings-menu .e-control.e-contextmenu,
+.ai-smart-menu ul {
+  position: fixed !important;
+}
+
+.ai-assist-dialog,
+.e-stop-generating-dialog,
+.e-smart-editor-dialog {
+  min-width: 280px !important;
+}
+
+.e-original-word .e-original-word {
+  color: #DC143C;
+  text-decoration: line-through;
+}
+
+.e-improved-word {
+  color: #228B22;
+}
+
+.ai-chat-btn.e-btn {
+  height: 40px;
+  width: 40px;
+  min-height: 40px;
+  min-width: 40px;
+}
+
+.ai-input-wrapper {
+  flex: 1;
+}
+
+.e-caret-hide .e-caret {
+  display: none;
+}
+
+.ai-input-wrapper .e-send.e-disabled {
+  pointer-events: none;
+}
+
+.ai-gc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.e-smart-editor-dialog .pane-content-header {
+  display: flex;
+  height: 48px;
+  align-items: center;
+}
+
+.e-smart-editor-dialog .pane-text-area {
+  height: 280px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 6px 10px !important;
+  min-height: 280px;
+  overflow-y: auto;
+}
+
+.e-smart-editor-dialog .e-split-bar.e-resizable-split-bar,
+.e-smart-editor-dialog .e-resizable-split-bar.e-split-bar-hover,
+.e-smart-editor-dialog .e-resize-handler.e-icons {
+  display: none !important;
+}
+
+.e-smart-editor-dialog .e-dlg-header-content {
+  height: 56px;
+  padding: 12px 16px;
+}
+
+.e-bigger .e-smart-editor-dialog .e-dlg-header-content {
+  height: 64px;
+  padding: 12px 20px;
+}
+
+.e-smart-editor-dialog .e-dlg-header-content .e-custom-header {
+  height: 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.e-bigger .e-smart-editor-dialog .e-dlg-header-content .e-custom-header {
+  height: 42px;
+}
+
+.e-ai-assist-toolbar,
+.e-ai-assist-toolbar .e-toolbar-items,
+.e-ai-assist-toolbar .e-toolbar-item,
+.e-ai-assist-toolbar .e-toolbar-item:hover,
+.e-ai-assist-toolbar .e-toolbar-item:focus,
+.e-ai-assist-toolbar .e-toolbar-item .e-tbar-btn,
+.e-ai-assist-toolbar .e-dropdown-btn.settings-btn {
+  background-color: #fff !important;
+}
+
+.e-ai-assist-toolbar .e-toolbar-item .e-tbar-btn,
+.e-ai-assist-toolbar .settings-btn {
+  box-shadow: none !important;
+}
+
+.e-ai-assist-toolbar .e-toolbar-item .e-tbar-btn-text,
+.e-ai-assist-toolbar .e-toolbar-item .e-btn-icon.e-icons {
+  color: #212529 !important;
+}
+
+.e-smart-editor-dialog .e-footer-content {
+  padding: 14px 16px 12px 16px;
+}
+
+.e-bigger .e-smart-editor-dialog .e-footer-content {
+  padding: 16px 20px 16px 20px;
+}
+
+.e-smart-editor-dialog .e-splitter.e-splitter-vertical {
+  border: none;
+}
+
+.e-ai-chat-btn::before,
+.stop-popup-text-icon::before {
+  content: '\e903';
+}
+
+.ai-assist-btn .e-ai-assist-btn::before {
+  content: '\e950';
+}
+
+.e-bigger .ai-assist-btn .e-icons.e-ai-assist-btn {
+  height: 16px;
+  width: 16px;
+  margin: 10px;
+}
+
+.ai-assist-btn.e-btn {
+  background-color: #ffffff !important;
+  border-radius: 4px !important;
+  border: 1px solid #0F6CBD !important;
+  color: #0F6CBD !important;
+  min-height: 4px !important;
+  min-width: 4px !important;
+}
+
+.ai-generate-dialog .e-dlg-header-content {
+  display: none !important;
+}
+
+.settings-btn.e-dropdown-btn {
+  width: 36px;
+  height: 32px;
+  border: none;
+  color: #6b7280 !important;
+  box-shadow: none !important;
+  background: #fff !important;
+}
+
+.e-bigger .e-smart-editor-dialog .settings-btn {
+  height: 40px;
+  width: 40px;
+}
+
+.settings-btn .e-btn-icon {
+  color: #6b7280;
+}
+
+.e-smart-editor-dialog .e-dlg-header-content .e-dlg-closeicon-btn {
+  height: 32px !important;
+  width: 32px !important;
+}
+
+.e-smart-editor-dialog .e-dlg-header-content .e-icon-dlg-close.e-icons {
+  position: static !important;
+}
+
+.e-stop-generating-dialog {
+  max-height: 100%;
+}
+
+.ai-stop-popup {
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: 0 0 16px 0 rgba(60, 60, 119, 0.11);
+}
+
+.e-bigger .ai-stop-popup {
+  height: 72px;
+  padding: 16px;
+}
+
+.ai-stop-popup .stop-popup-text {
+  margin: 0 6px;
+}
+
+.ai-stop-popup .stop-popup-text-icon {
+  color: #0F6CBD;
+  font-size: 18px;
+  vertical-align: middle;
+}
+
+.stop-popup-text-icon,
+.stop-popup-text {
+  line-height: 32px;
+}
+
+.e-bigger .stop-popup-text-icon,
+.e-bigger .stop-popup-text {
+  line-height: 40px;
+}
+
+.ai-stop-popup .ai-stop-btn {
+  height: 32px;
+  min-width: 151px;
+  line-height: 14px;
+  float: right;
+  z-index: 1000000001;
+}
+
+.e-bigger .ai-stop-popup .ai-stop-btn {
+  height: 40px;
+  min-width: 151px;
+  padding: 9px 16px;
+}
+
+.ai-stop-popup .ai-stop-btn,
+.ai-stop-popup .stop-popup-text,
+.e-ai-assist-toolbar .e-icons.e-btn,
+.e-smart-editor-dialog .translate-label,
+.e-smart-editor-dialog .e-icon-dlg-close,
+.ai-assist-dialog .e-dlg-content .e-icons.e-settings,
+.e-ai-assist-toolbar .e-toolbar-item.page-count span,
+.ai-assist-dialog .e-dlg-content .e-icons.e-reference,
+.ai-assist-dialog .e-dlg-content .e-icons.e-send,
+.ai-assist-dialog .e-dlg-content .e-textbox.e-input,
+.ai-assist-dialog .e-dlg-header-content .e-popup-header,
+.ai-assist-btn .e-icons.e-ai-assist-btn {
+  font-size: 14px !important;
+}
+
+.e-bigger .ai-stop-popup .ai-stop-btn,
+.e-bigger .e-ai-assist-toolbar .e-icons.e-btn,
+.e-bigger .ai-stop-popup .stop-popup-text,
+.e-bigger .e-smart-editor-dialog .translate-label,
+.e-smart-editor-dialog .e-dlg-header-content .e-popup-header,
+.e-bigger .e-ai-assist-toolbar .e-toolbar-item.page-count span,
+.e-bigger .e-smart-editor-dialog .e-icon-dlg-close,
+.e-bigger .ai-assist-dialog .e-dlg-content .e-icons.e-settings,
+.e-bigger .ai-assist-dialog .e-dlg-content .e-textbox.e-input,
+.e-bigger .ai-assist-dialog .e-dlg-header-content .e-popup-header,
+.ai-chat-btn .e-icons.e-ai-chat-btn,
+.e-bigger .ai-assist-btn .e-icons.e-ai-assist-btn {
+  font-size: 16px !important;
+}
+
+.ai-stop-popup .stop-popup-text-icon,
+.e-ai-assist-toolbar .e-toolbar-item.page-count span,
+.e-ai-assist-toolbar .e-icons.e-btn,
+.e-smart-editor-dialog .e-icon-dlg-close,
+.ai-assist-dialog .e-dlg-content .e-icons.e-settings,
+.ai-assist-dialog .e-dlg-content .e-icons.e-reference,
+.ai-assist-dialog .e-dlg-content .e-icons.e-send,
+.e-bigger .ai-assist-dialog .e-dlg-content .e-icons.e-reference,
+.e-bigger .ai-assist-dialog .e-dlg-content .e-icons.e-send,
+.ai-assist-dialog .e-dlg-content .e-textbox.e-input,
+.ai-chat-btn .e-icons.e-ai-chat-btn {
+  font-weight: 400 !important;
+}
+
+.e-smart-editor-dialog .translate-label,
+.ai-stop-popup .stop-popup-text,
+.e-bigger .ai-stop-popup .stop-popup-text,
+.e-smart-editor-dialog .e-dlg-header-content .e-popup-header {
+  font-weight: 600 !important;
+}
+
+.ai-settings-menu .e-menu-parent.e-ul .e-menu-item:not(.e-selected) {
+  padding-left: 34px;
+}
+
+.ai-settings-menu .e-menu-parent.e-ul .e-menu-item.e-selected {
+  padding-left: 8px;
+}
+
+.e-smart-editor-dialog .e-multiselect.e-control-wrapper,
+.e-smart-editor-dialog .e-ddl.e-control-wrapper {
+  margin-left: 8px;
+}
+
+.e-bigger .e-smart-editor-dialog .e-ddl.e-control-wrapper {
+  margin-left: 12px;
+}
+
+.e-bigger .e-smart-editor-dialog .e-multiselect.e-control-wrapper {
+  margin-left: 9px;
+}
+
+.e-smart-editor-dialog .e-header-toolbar {
+  height: 39px;
+}
+
+.e-bigger .e-smart-editor-dialog .e-header-toolbar {
+  height: 48px;
+}
+
+.e-smart-editor-dialog .e-icons.e-settings {
+  vertical-align: baseline;
+}
+
+.e-bigger .e-smart-editor-dialog .e-icons.e-settings {
+  height: 16px;
+  width: 16px;
+}
+
+.e-bigger .e-smart-editor-dialog .e-dlg-closeicon-btn {
+  top: 1px;
+}
+
+.e-smart-editor-dialog .e-dlg-content {
+  padding: 0 16px !important;
+}
+
+.e-bigger .e-smart-editor-dialog .e-dlg-content {
+  padding: 0 20px !important;
+}
+
+.ai-settings-menu ul {
+ z-index: 1000000005 !important;
+}
+
+.e-ribbon-help-template.e-hide {
+  display: none !important;
+}
+
+.e-smart-editor-dialog .e-footer-content {
+  margin-top: 12px;
+}
+
+.ai-assist-dialog .settings-btn {
+  color: #6b7280;
+}
+
+.ai-assist-dialog .e-footer-content .e-discard-btn {
+  background-color: #fff !important;
+	border-color: #C50F1F !important;
+	color: #C50F1F !important;
+}

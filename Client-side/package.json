@@ -1,0 +1,49 @@
+{
+  "name": "my-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@ai-sdk/azure": "^3.0.6",
+    "@ai-sdk/google": "^3.0.6",
+    "@azure/openai": "^2.0.0-beta.1",
+    "@google/generative-ai": "^0.13.0",
+    "@syncfusion/ej2": "*",
+    "@syncfusion/ej2-base": "*",
+    "@syncfusion/ej2-react-base": "*",
+    "@syncfusion/ej2-react-buttons": "*",
+    "@syncfusion/ej2-react-documenteditor": "*",
+    "@syncfusion/ej2-react-dropdowns": "*",
+    "@syncfusion/ej2-react-inputs": "*",
+    "@syncfusion/ej2-react-interactive-chat": "*",
+    "@syncfusion/ej2-react-layouts": "*",
+    "@syncfusion/ej2-react-lists": "*",
+    "@syncfusion/ej2-react-navigations": "*",
+    "@syncfusion/ej2-react-notifications": "*",
+    "@syncfusion/ej2-react-popups": "*",
+    "@syncfusion/ej2-react-splitbuttons": "*",
+    "@xenova/transformers": "^2.17.2",
+    "ai": "^6.0.27",
+    "form-data": "^4.0.0",
+    "groq-sdk": "^0.5.0",
+    "openai": "^4.56.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "web-vitals": "^2.1.4"
+  },
+  "devDependencies": {
+    "@types/codemirror": "^5.60.16",
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.21"
+  }
+}
