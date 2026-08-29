@@ -1,0 +1,9 @@
+{
+  "Organization": [
+    {
+      "OrgName": "ABC Foundation",
+      "OrgAddress": "123 Main Street, New York, NY 10001",
+	  "OrgRegion": "USA"
+    }
+  ]
+}
