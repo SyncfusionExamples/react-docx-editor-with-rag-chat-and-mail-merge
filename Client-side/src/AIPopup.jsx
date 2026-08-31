@@ -12,6 +12,8 @@ import { createSpinner, showSpinner, hideSpinner } from '@syncfusion/ej2-popups'
 import './editor-helpers.js';
 import './AIPopup.css';
 import { getAzureChatAIRequest } from './ai-models.js';
+import { SERVICE_URL } from './service-config.js';
+
 
 const GrammarOptions = [
   { Name: 'Subject-Verb Agreement' }, { Name: 'Tense Consistency' }, { Name: 'Pronoun Agreement' },
@@ -55,28 +57,28 @@ function isSimilar(a, b, threshold = 1) {
 function highlightDifferences(original, modified) {
   const oWords = (original || '').split(/\s+/);
   const mWords = (modified || '').split(/\s+/);
-  const lcs = Array(oWords.length + 1).fill(0).map(() => Array(mWords.length + 1).fill(0));
-  for (let i = 0; i < oWords.length; i++) {
-    for (let j = 0; j < mWords.length; j++) {
-      if (oWords[i] === mWords[j] || isSimilar(oWords[i], mWords[j])) lcs[i + 1][j + 1] = lcs[i][j] + 1;
-      else lcs[i + 1][j + 1] = Math.max(lcs[i + 1][j], lcs[i][j + 1]);
-    }
-  }
+  // const lcs = Array(oWords.length + 1).fill(0).map(() => Array(mWords.length + 1).fill(0));
+  // for (let i = 0; i < oWords.length; i++) {
+  //   for (let j = 0; j < mWords.length; j++) {
+  //     if (oWords[i] === mWords[j] || isSimilar(oWords[i], mWords[j])) lcs[i + 1][j + 1] = lcs[i][j] + 1;
+  //     else lcs[i + 1][j + 1] = Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+  //   }
+  // }
 
   const unchanged = new Set();
-  let x = oWords.length, y = mWords.length;
+  // let x = oWords.length, y = mWords.length;
 
-  while (x > 0 && y > 0) {
-    if (oWords[x - 1] === mWords[y - 1] || isSimilar(oWords[x - 1], mWords[y - 1])) { unchanged.add(`${x - 1}|${y - 1}`); x--; y--; }
-    else if (lcs[x - 1][y] >= lcs[x][y - 1]) x--;
-    else y--;
-  }
+  // while (x > 0 && y > 0) {
+  //   if (oWords[x - 1] === mWords[y - 1] || isSimilar(oWords[x - 1], mWords[y - 1])) { unchanged.add(`${x - 1}|${y - 1}`); x--; y--; }
+  //   else if (lcs[x - 1][y] >= lcs[x][y - 1]) x--;
+  //   else y--;
+  // }
 
   const highlightedOriginal = oWords.map((w, i) =>
     [...unchanged].some(k => k.startsWith(`${i}|`)) ? w : `<span class="e-original-word">${w}</span>`).join(' ');
 
   const highlightedModified = mWords.map((w, j) =>
-    [...unchanged].some(k => k.endsWith(`|${j}`)) ? w : `<span class="e-improved-word">${w}</span>`).join(' ');
+    [...unchanged].some(k => k.endsWith(`|${j}`)) ? w : `<span class="e-original-word">${w}</span>`).join(' ');
 
   return { highlightedOriginal, highlightedModified };
 }
@@ -352,7 +354,7 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
   };
 
   // Enable track changes on the DocumentEditor so that AI-generated
-  // content inserted via insertContent() / replaceSelectionWithPlainText()
+  // content inserted via insertContent() / replaceSelectionWithText()
   // appears as tracked changes (revisions) that the user can Accept or
   // Reject using the Review ribbon's Track Changes commands. Called
   // immediately before any AI content is written into the document so
@@ -367,16 +369,34 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
     } catch { /* not all builds expose these props */ }
   }, []);
 
-  const replaceSelectionWithPlainText = async (html) => {
-    const text = (html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const replaceSelectionWithText = async (html) => {
     try {
       const editor = editorRef?.current?.documentEditor;
       // Enable track changes so the AI-rephrased text shows up as a
       // revision the user can Accept or Reject.
       enableTrackChangesForAIInsert();
       if (editor?.selection?.text) editor.editor.delete();
-      editor?.editor?.insertText(text);
-    } catch (e) { alert('Replace failed: ' + e.message); }
+      //editor?.editor?.insertText(text);      
+      const res = await fetch(`${SERVICE_URL}LoadString`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: html })
+      });
+      if (!res.ok) {
+        throw new Error('LoadString failed: ' + res.statusText);
+      }
+      const sfdtText = await res.text();
+      let sfdt;
+      try {
+        sfdt = JSON.parse(sfdtText);
+      } catch {
+        sfdt = sfdtText;
+      }
+      try { editor.focusIn(); } catch { /* ignore */ }
+      editor.editor.paste(sfdt);
+      } catch (e) {
+          alert('Replace failed: ' + e.message);
+      }
   };
 
   const insertContent = async (out) => {
@@ -394,11 +414,32 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
         ed.focusIn();
         const { end: caretEndBefore } = getOffsets();
         if (caretEndBefore != null) selectOffsets(caretEndBefore, caretEndBefore);
-        const plain = htmlToPlain(out);
+        //const plain = htmlToPlain(out);
         if (canceledRef.current) {
           return;
         }
-        ed.editor.insertText(plain);
+        //ed.editor.insertText(plain);
+        try {
+          const res = await fetch(`${SERVICE_URL}LoadString`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: out })
+          });
+          if (!res.ok) {
+            throw new Error('LoadString failed: ' + res.statusText);
+          }
+          const sfdtText = await res.text();
+          let sfdt;
+          try {
+            sfdt = JSON.parse(sfdtText);
+          } catch {
+            sfdt = sfdtText;
+          }
+          try { ed.focusIn(); } catch { /* ignore */ }
+          ed.editor.paste(sfdt);
+        } catch (e) {
+          console.error('Insert assistant response failed:', e);
+        }
         ed.editor.insertText('\n');
         const { end: endAfter } = getOffsets();
         if (caretEndBefore != null && endAfter != null && endAfter >= caretEndBefore) {
@@ -580,7 +621,7 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
       setSmartVisible(false);
       return;
     }
-    await replaceSelectionWithPlainText(latestHtml);
+    await replaceSelectionWithText(latestHtml);
     setSmartVisible(false);
   };
 
