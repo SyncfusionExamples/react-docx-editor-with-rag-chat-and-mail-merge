@@ -646,11 +646,15 @@ namespace DOCXEditorAPIServices.Controllers
                 await _ragService.GenerateChunk(stream);
             }
 
-            string answer = await _ragService.AskQuestionAsync(data.Question);
+            // The heading path is returned separately so the client can
+            // bookmark the heading paragraph and render a "Source"
+            // hyperlink that navigates to it.
+            (string answer, string headingPath) = await _ragService.AskQuestionAsync(data.Question);
 
             return Ok(new RagChatResponse
             {
-                Answer = answer
+                Answer = answer,
+                HeadingPath = headingPath
             });
         }
 

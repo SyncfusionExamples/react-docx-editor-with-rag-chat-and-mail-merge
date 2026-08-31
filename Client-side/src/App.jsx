@@ -817,6 +817,94 @@ const onPreviewWithData = useCallback(async () => {
   // onShowChatPane when its own close handler fires, so the stub stays.
   const showChatPane = () => { /* no-op: chat panel is always visible */ };
 
+  // Monotonic counter for temporary source-heading bookmarks so each
+  // answer gets a unique, collision-free bookmark id.
+  const sourceBookmarkCounter = useRef(0);
+
+  // Creates a temporary bookmark in the heading paragraph that matches
+  // the server-provided headingPath (e.g. "1. New heading" — the
+  // numeric list prefix is stripped before searching).
+  //
+  // Flow:
+  //   1. editorRef.search.findAll(plainHeadingText) — find every
+  //      occurrence of the heading text in the document.
+  //   2. Iterate searchResults[i].selection.paragraphFormat.styleName —
+  //      when it starts with "Heading" (Heading1, Heading 2, ...), that
+  //      result sits inside a real heading paragraph.
+  //   3. Select that result and insert a unique temporary bookmark via
+  //      editor.editor.insertBookmark(bookmarkName).
+  //
+  // Returns the bookmark name on success, '' when the heading could
+  // not be located (or the editor APIs are unavailable).
+  const createTemporaryHeadingBookmark = useCallback((headingPath) => {
+    const editor = container.current?.documentEditor;
+    if (!editor || !headingPath) return '';
+
+    // The chunker's headingPath is a numbered breadcrumb like
+    // "1. New heading" or "1. Intro > 2. Details". Search for the
+    // trailing leaf heading text only — the full breadcrumb will never
+    // match the on-page text.
+    const leafHeading = String(headingPath)
+      .split('>')
+      .pop()                                  // take the leaf segment
+      .trim()
+      .replace(/^\d+[.)]?\s*/, '');           // drop "1." / "2)" prefix
+    if (!leafHeading) return '';
+
+    const searchModule = editor.search;
+    if (!searchModule?.findAll) return '';
+
+    // Find every occurrence of the heading text.
+    searchModule.findAll(leafHeading);
+
+    const results = searchModule.searchResults;
+    if (!results || results.length === 0) {
+      searchModule.searchResults?.clear?.();
+      return '';
+    }
+
+    try {
+      // Iterate each search result and inspect the paragraph style of
+      // the selection at that result. The first result inside a
+      // paragraph whose styleName starts with "Heading" is the match.
+      for (let i = 0; i < results.length; i++) {
+        // Navigating to result i updates editor.selection so its
+        // paragraphFormat reflects that result's paragraph.
+        results.index = i;
+
+        const styleName =
+          editor.selection?.paragraphFormat?.styleName || '';
+
+        if (styleName && /^Heading/i.test(styleName)) {
+          const bookmarkName =
+            `__tmp_src_heading_${++sourceBookmarkCounter.current}`;
+
+          editor.editor.insertBookmark(bookmarkName);
+          return bookmarkName;
+        }
+      }
+      return '';
+    } finally {
+      // Always clear the search highlights; the bookmark already points
+      // at the heading paragraph and survives the selection change.
+      try { results.clear(); } catch { /* ignore */ }
+    }
+  }, []);
+
+  // Click handler for the "Source" hyperlink rendered at the bottom of
+  // an answer bubble. Navigates the editor to the temporary bookmark
+  // created in the heading paragraph (scrolls it into view).
+  const navigateToSourceBookmark = useCallback((bookmarkName) => {
+    if (!bookmarkName) return;
+    const editor = container.current?.documentEditor;
+    if (!editor) return;
+    try {
+      editor.selection.selectBookmark(bookmarkName);
+    } catch (navErr) {
+      console.warn('Failed to navigate to source bookmark:', navErr);
+    }
+  }, []);
+
   // RAG chat: POST { SfdtContent, Question, IsContentChanged } to
   // /api/DocumentEditor/AskQuestion. The server converts the live
   // document (SFDT) to DOCX, re-chunks it when the content changed
@@ -874,6 +962,30 @@ const onPreviewWithData = useCallback(async () => {
       }
       const result = await response.json();
       const answer = result.answer || result.Answer || '';
+      // Normalize: treat missing / blank server values as "no heading"
+      // so nothing (no search, no bookmark, no hyperlink) happens.
+      const headingPath = (result.headingPath || result.HeadingPath || '').trim();
+
+      // Locate the heading paragraph in the live document and insert a
+      // temporary bookmark there so the answer's "Source" hyperlink can
+      // navigate straight to it.
+      //
+      // Guards (per requirement):
+      //   - No headingPath from the server        → no search, no bookmark.
+      //   - Heading text not found in the document → no bookmark, and no
+      //     hyperlink is rendered in the assistant panel at all.
+      // Only when the bookmark was actually created do we attach the
+      // source heading to the answer message.
+      let sourceBookmark = '';
+      if (headingPath) {
+        try {
+          sourceBookmark = createTemporaryHeadingBookmark(headingPath);
+        } catch (bmErr) {
+          console.warn('Failed to bookmark the source heading:', bmErr);
+          sourceBookmark = '';
+        }
+      }
+
       // Remember the indexed SFDT so the next send can diff against it.
       lastIndexedSfdtRef.current = sfdtContent;
       setRagMessages(prev => {
@@ -882,7 +994,16 @@ const onPreviewWithData = useCallback(async () => {
         if (next.length && next[next.length - 1].loading) {
           next.pop();
         }
-        next.push({ text: answer, sender: 'assistant' });
+        // The source heading is attached ONLY when a temporary bookmark
+        // exists — the render shows no hyperlink otherwise.
+        const withSource = sourceBookmark
+          ? { sourceHeading: headingPath, sourceBookmark }
+          : {};
+        next.push({
+          text: answer,
+          sender: 'assistant',
+          ...withSource
+        });
         return next;
       });
     } catch (err) {
@@ -1041,7 +1162,36 @@ const onPreviewWithData = useCallback(async () => {
                           key={i}
                           className={`rag-message rag-message-${m.sender}${m.loading ? ' rag-message-loading' : ''}`}
                         >
-                          <div className="rag-bubble">{m.text}</div>
+                          <div className="rag-bubble">
+                            {m.text}
+                            {/* Source hyperlink at the bottom of the
+                                answer — rendered ONLY when the server
+                                returned a headingPath AND a temporary
+                                bookmark was successfully inserted in the
+                                matching heading paragraph. Otherwise no
+                                hyperlink is shown at all. Clicking it
+                                navigates the editor to the bookmark
+                                (createTemporaryHeadingBookmark). */}
+                            {m.sender === 'assistant' &&
+                              !m.loading &&
+                              m.sourceHeading &&
+                              m.sourceBookmark && (
+                              <div className="rag-source-link">
+                                Source:&nbsp;
+                                <a
+                                  href="#"
+                                  className="rag-source-anchor"
+                                  title="Go to this heading in the document"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    navigateToSourceBookmark(m.sourceBookmark);
+                                  }}
+                                >
+                                  {m.sourceHeading}
+                                </a>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ))
                     )}

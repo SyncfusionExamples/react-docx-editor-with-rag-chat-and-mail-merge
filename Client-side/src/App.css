@@ -256,6 +256,31 @@ body .col-lg-9 {
     border-bottom-left-radius: 2px;
 }
 
+/* --- Source hyperlink at the bottom of an AI answer ---
+   Rendered inside assistant bubbles when the server returned a
+   headingPath. The anchor navigates the editor to the temporary
+   bookmark inserted in the matching heading paragraph. */
+.rag-source-link {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px dashed #cbd5e1;
+    font-size: 12px;
+    color: #475569;
+}
+
+.rag-source-anchor {
+    color: #2563eb;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.rag-source-anchor:hover,
+.rag-source-anchor:focus {
+    color: #1d4ed8;
+    text-decoration: underline;
+}
+
 .rag-chat-input-area {
     flex: 0 0 auto;
     display: flex;

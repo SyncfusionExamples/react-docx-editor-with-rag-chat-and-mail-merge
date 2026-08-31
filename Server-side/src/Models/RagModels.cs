@@ -25,11 +25,22 @@ namespace DOCXEditorAPIServices.Models
     }
 
     /// <summary>
-    /// Successful response for POST /api/chat.
+    /// Successful response for POST /api/chat and /AskQuestion.
     /// </summary>
     public class RagChatResponse
     {
         public string Answer { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Heading path (e.g. "1. New heading") of the most-relevant
+        /// heading paragraph among the retrieved chunks, taken from
+        /// Citations.LocationDetails["headingPath"]. Empty when no
+        /// retrieved chunk carried a heading locator. The client uses
+        /// this to locate the heading in the document, insert a
+        /// temporary bookmark there, and render a "Source" hyperlink
+        /// at the bottom of the answer that navigates to it.
+        /// </summary>
+        public string HeadingPath { get; set; } = string.Empty;
     }
 
     /// <summary>

@@ -216,13 +216,20 @@ namespace DOCXEditorAPIServices.Services
         /// context. Returns a polite "not found" message when the
         /// store is empty or no chunks are relevant.
         /// </summary>
-        public async Task<string> AskQuestionAsync(string question)
+        /// <remarks>
+        /// The heading path of the most-relevant heading paragraph
+        /// (Citations.LocationDetails["headingPath"]) is returned
+        /// SEPARATELY from the answer text so the client can locate
+        /// the heading in the editor, insert a temporary bookmark
+        /// there, and render a clickable "Source" hyperlink.
+        /// </remarks>
+        public async Task<(string Answer, string HeadingPath)> AskQuestionAsync(string question)
         {
 
             List<LocalChunkRecord> chunks = await RetrieveRelevantChunksAsync(question, topK: 10);
 
             if (chunks.Count == 0)
-                return "I could not find relevant content in the uploaded knowledge files.";
+                return ("I could not find relevant content in the uploaded knowledge files.", string.Empty);
 
             // Build the context block fed to the chat model. Mirrors the
             // reference Program.cs formatting verbatim so the chat
@@ -231,7 +238,6 @@ namespace DOCXEditorAPIServices.Services
                 Environment.NewLine + "--------------------" + Environment.NewLine,
                 chunks.Select(chunk =>
 $"""
-Source: {chunk.SourceName}
 Chunk Index: {chunk.ChunkIndex}
 Metadata:
 {MetadataAttributesToString(chunk.MetadataAttributes)}
@@ -251,9 +257,11 @@ Rules:
 2. Do not invent information.
 3. If the answer is not available in the context, say:
    "I could not find that information in the knowledge base."
-4. Mention the section path if available.
-5. If multiple chunks are relevant, summarize them clearly.
-6. Keep the answer concise but complete.
+4. If multiple chunks are relevant, summarize them clearly.
+5. Keep the answer concise but complete.
+6. Do NOT mention file names, chunk indexes, citations, scores, or
+   source/heading references inside the answer body. The source is
+   added separately by the client below the answer.
 
 Context:
 
@@ -268,9 +276,21 @@ Question:
             // appsettings.json (AzureOpenAI:ChatDeploymentName).
             ClientResult<ChatCompletion> chatResult = await _chatClient.CompleteChatAsync(prompt);
 
-            return chatResult.Value.Content.Count > 0
+            string answer = chatResult.Value.Content.Count > 0
                 ? (chatResult.Value.Content[0].Text ?? string.Empty)
                 : string.Empty;
+
+            // The chunks are ordered by relevance, and the heading
+            // paragraphs carry a "headingPath" locator in their citation
+            // location details. Return the most-relevant heading path
+            // separately so the client can create a temporary bookmark
+            // in the heading paragraph and link to it from the answer.
+            string headingPath = chunks
+                .Select(GetHeadingPath)
+                .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path))
+                ?? string.Empty;
+
+            return (answer, headingPath);
         }
 
         // ------------------------------------------------------------
@@ -537,6 +557,35 @@ Question:
             return builder.Length > 0
                 ? builder.ToString().TrimEnd()
                 : "None";
+        }
+
+        /// <summary>
+        /// Extracts the heading path from a chunk's citation location
+        /// details. The Syncfusion chunker stores heading-paragraph
+        /// locators under the "headingPath" key in
+        /// Citation.LocationDetails (e.g. "1. New heading"). Returns
+        /// null when the chunk has no heading locator.
+        /// </summary>
+        private static string? GetHeadingPath(LocalChunkRecord record)
+        {
+            if (record.CitationDetails == null)
+                return null;
+
+            foreach (KeyValuePair<string, object> detail
+                     in record.CitationDetails)
+            {
+                if (!string.Equals(detail.Key, "headingPath", StringComparison.OrdinalIgnoreCase) ||
+                    detail.Value == null)
+                {
+                    continue;
+                }
+
+                string? value = ConvertMetadataValueToString(detail.Value);
+
+                return string.IsNullOrWhiteSpace(value) ? null : value;
+            }
+
+            return null;
         }
 
         /// <summary>
