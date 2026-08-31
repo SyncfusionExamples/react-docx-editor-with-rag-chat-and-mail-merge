@@ -1,0 +1,55 @@
+{
+  "CreditApproval": [
+    {
+      "ApplicationNumber": "LL-2026-100045",
+  "ApplicantName": "Andrew Fuller",
+  "LoanType": "Personal Loan",
+  "BranchName": "Tacoma Branch",
+  "DocumentDate": "2026-08-25",
+
+  "LoanPurpose": "Home Renovation",
+
+  "EmployerName": "Sales Division",
+  "Designation": "Vice President, Sales",
+  "EmploymentDuration": 12,
+  "ResidentialAddress": "908 W. Capital Way, Tacoma, WA, USA",
+  "BranchLocation": "Tacoma Branch",
+
+  "MonthlyGrossIncome": 18500,
+  "MonthlyNetIncome": 14250,
+  "AdditionalIncomeSource": "Investment Income",
+  "AdditionalIncomeAmount": 1200,
+
+  "HousingLoanBalance": 85000,
+  "VehicleLoanBalance": 12000,
+  "CreditCardBalance": 3500,
+  "PersonalLoanBalance": 0,
+  "TotalMonthlyCommitment": 2400,
+
+  "CreditScore": 781,
+  "CreditHistoryPeriod": 10,
+  "RiskCategory": "Low Risk",
+
+  "ApprovedLoanAmount": 250000,
+  "InterestRate": "8.75%",
+  "ApprovedTenure": "84 Months",
+  "MonthlyInstallment": 3925,
+
+  "SecurityType": "Residential Property",
+  "SecurityValue": 450000,
+  "ValuationAgency": "ABC Property Valuers",
+  "ValuationDate": "2026-08-10",
+
+  "AMLScreeningResult": "Passed",
+
+  "RecommendationStatus": "Approved",
+
+  "RelationshipManager": "Steven Buchanan",
+  "CreditAnalyst": "Margaret Peacock",
+  "BranchManager": "Stanley Hudson",
+  "AuthorizingOfficer": "Andy Bernard",
+
+      "AuthorizationDate": "2026-08-28"
+    }
+  ]
+}

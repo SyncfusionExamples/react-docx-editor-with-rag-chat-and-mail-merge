@@ -17,14 +17,14 @@ namespace DOCXEditorAPIServices.Controllers
     //
     // Persisted layout:
     //   Server-side/src/wwwroot/Data/sections.json
-    //   Server-side/src/wwwroot/Data/sections/<slug>.docx   (bytes)
     //
     // `sections.json` is a JSON array of catalog entries:
     //   [ { "id": 1, "text": "Cover Page", "key": "coverPage", "sfdt": "{...}" } ]
     //
-    // On startup the React client calls GET /GetSections to read this
-    // catalog and merges it with the static listData (builtin templates),
-    // so user-added sections survive page refreshes.
+    // sections.json is the SINGLE SOURCE OF TRUTH for the catalog — the
+    // server does NOT generate or seed section content from hardcoded
+    // HTML. The React client reads it via GET /GetSections on startup,
+    // and user-added sections are appended via POST /SaveSection.
 
     public partial class DocumentEditorController : Controller
     {
@@ -153,99 +153,6 @@ namespace DOCXEditorAPIServices.Controllers
                 // JsonConvert.SerializeObject keeps the Newtonsoft-friendly
                 // shape intact.
                 return Content(JsonConvert.SerializeObject(entry), "application/json");
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError, new { Message = ex.Message });
-            }
-        }
-
-        /// <summary>
-        /// Seeds the builtin section catalog (Document Intro, Key
-        /// Responsibilities, Major Work Area, Document Conclusion) into
-        /// wwwroot/Data/sections.json on first request. The 4 entries
-        /// are generated from short HTML strings via
-        /// WordDocument.LoadString(..., FormatType.Html) so the SFDT is
-        /// available for instant `paste()` without bundling large SFDT
-        /// blobs in the client. Any user-added entries already in the
-        /// file are preserved. Subsequent calls are no-ops once the
-        /// builtin ids 1-4 are present.
-        /// </summary>
-        [AcceptVerbs("Post", "Get")]
-        [EnableCors("AllowAllOrigins")]
-        [Route("SeedSections")]
-        public IActionResult SeedSections()
-        {
-            try
-            {
-                Directory.CreateDirectory(SectionsDataFolder);
-
-                // Built-in section definitions (id, name, html body).
-                // Ids 1-4 stay clear of the user-added ids (100+).
-                var builtin = new (int id, string name, string html)[]
-                {
-                    (1, "Document Intro",
-                        "<h1>Document Introduction</h1><p>This section introduces the document and sets the context for the reader.</p>"),
-                    (2, "Key Responsibilities",
-                        "<h2>Key Responsibilities</h2><ul><li>Design and architecture</li><li>Implementation and delivery</li><li>Review and quality assurance</li></ul>"),
-                    (3, "Major Work Area",
-                        "<h2>Major Work Area</h2><p>Summarize the primary scope of work, including objectives, milestones, and outcomes.</p>"),
-                    (4, "Document Conclusion",
-                        "<h2>Conclusion</h2><p>Close the document with a summary of results, next steps, and acknowledgements.</p>")
-                };
-
-                List<JObject> catalog;
-                if (System.IO.File.Exists(SectionsFilePath))
-                {
-                    string existing = System.IO.File.ReadAllText(SectionsFilePath);
-                    catalog = JsonConvert.DeserializeObject<List<JObject>>(existing) ?? new List<JObject>();
-                }
-                else
-                {
-                    catalog = new List<JObject>();
-                }
-
-                // Don't clobber builtin ids that already exist.
-                var existingIds = new HashSet<int>(
-                    catalog.Select(s => (int?)s["id"] ?? 0));
-                bool addedAny = false;
-
-                foreach (var (id, name, html) in builtin)
-                {
-                    if (existingIds.Contains(id)) continue;
-
-                    WordDocument doc = WordDocument.LoadString(html, FormatType.Html);
-                    string sfdt = JsonConvert.SerializeObject(doc);
-                    doc.Dispose();
-
-                    string key = System.Text.RegularExpressions.Regex.Replace(
-                        name.ToLowerInvariant(),
-                        @"[^a-z0-9]+", "_");
-                    key = System.Text.RegularExpressions.Regex.Replace(key, @"^_+|_+$", "");
-                    if (string.IsNullOrEmpty(key)) key = "section";
-
-                    catalog.Add(new JObject
-                    {
-                        ["id"] = id,
-                        ["text"] = name,
-                        ["key"] = key,
-                        ["sfdt"] = sfdt
-                    });
-                    addedAny = true;
-                }
-
-                if (addedAny)
-                {
-                    // Sort ascending by id so builtins appear first in the ListView.
-                    catalog = catalog
-                        .OrderBy(s => (int?)s["id"] ?? int.MaxValue)
-                        .ToList();
-                    System.IO.File.WriteAllText(
-                        SectionsFilePath,
-                        JsonConvert.SerializeObject(catalog, Formatting.Indented));
-                }
-
-                return Ok(new { Seeded = addedAny, Count = catalog.Count });
             }
             catch (Exception ex)
             {

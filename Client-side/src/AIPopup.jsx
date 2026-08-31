@@ -815,6 +815,9 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
       if (!ed) return;
       const onSelectionChange = () => {
         try {
+          // When the AI pointer is switched OFF from the top bar, keep
+          // it hidden — do not let caret/selection movement re-show it.
+          if (!isAIEnabled) return;
           const pos = window?.getAIAssistBtnPosition?.();
           if (pos) {
             setAssistBtn(prev => ({
@@ -835,7 +838,7 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
       ed.selectionChange = onSelectionChange;
 
     }
-  }, [editorRef, viewerHost]);
+  }, [editorRef, viewerHost, isAIEnabled]);
 
   useEffect(() => {
     const viewerEl =

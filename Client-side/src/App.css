@@ -1,3 +1,32 @@
+/* --- Design tokens (aligned with the Tailwind CSS default palette) ---
+   The app is styled with plain CSS (Tailwind is not installed), but these
+   custom properties keep every color, radius, and shadow aligned with the
+   Tailwind scale so the UI reads as a consistent, showcase-quality system:
+     --tw-primary   = blue-600   (actions, links, user bubble)
+     --tw-primary-hover = blue-700
+     --tw-brand     = sky-600    (top bar / panel header accents)
+     --tw-slate-*   = neutral text/border/surface ramp
+     --tw-radius / --tw-shadow / --tw-focus-ring = shared polish
+   Use var(--tw-*) in new rules instead of hard-coded hex values. */
+:root {
+    --tw-primary: #2563eb;
+    --tw-primary-hover: #1d4ed8;
+    --tw-primary-soft: rgba(37, 99, 235, 0.12);
+    --tw-brand: #0F6CBD;
+    --tw-brand-dark: #11508c;
+    --tw-text-strong: #0F172A;
+    --tw-text: #334155;
+    --tw-text-muted: #64748b;
+    --tw-border: #e2e8f0;
+    --tw-surface: #ffffff;
+    --tw-surface-muted: #f8fafc;
+    --tw-radius: 8px;
+    --tw-radius-sm: 6px;
+    --tw-shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
+    --tw-shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.10), 0 4px 6px -4px rgba(15, 23, 42, 0.08);
+    --tw-focus-ring: 0 0 0 3px var(--tw-primary-soft);
+}
+
 body {
     overflow: hidden !important;
     margin: 8px 8px 0 8px !important;
@@ -23,10 +52,11 @@ body .col-lg-9 {
 }
 
 .app-loading-card {
-    background: #fff;
-    border-radius: 8px;
+    background: var(--tw-surface);
+    border: 1px solid var(--tw-border);
+    border-radius: var(--tw-radius);
     padding: 28px 36px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+    box-shadow: var(--tw-shadow-lg);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -37,8 +67,8 @@ body .col-lg-9 {
 .app-loading-spinner {
     width: 36px;
     height: 36px;
-    border: 3px solid #e2e8f0;
-    border-top-color: #0F6CBD;
+    border: 3px solid var(--tw-border);
+    border-top-color: var(--tw-brand);
     border-radius: 50%;
     animation: app-loading-spin 0.8s linear infinite;
 }
@@ -74,9 +104,9 @@ body .col-lg-9 {
     align-items: center;
     justify-content: space-between;
     padding: 0 20px;
-    background: linear-gradient(90deg, #ffffff 0%, #f4f7fb 100%);
-    border-bottom: 1px solid #e0e6ed;
-    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+    background: linear-gradient(90deg, var(--tw-surface) 0%, var(--tw-surface-muted) 100%);
+    border-bottom: 1px solid var(--tw-border);
+    box-shadow: var(--tw-shadow-md);
 }
 
 .app-topbar-title {
@@ -110,6 +140,66 @@ body .col-lg-9 {
 .app-topbar-btn .e-btn-icon {
     font-size: 14px !important;
     margin-right: 4px;
+}
+
+/* --- "AI Editing" ON/OFF switch (top bar, right end) ---
+   Controls the floating AI Assist button that follows the caret.
+   Defaults to OFF; turning it ON enables in-editor AI generation
+   (Generate / Rephrase / Translate / Grammar). Styled as a compact
+   pill: label, divider, then the switch. */
+.app-topbar-switch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: 12px;
+    padding: 4px 6px 4px 12px;
+    border-left: 1px solid var(--tw-border);
+}
+
+.app-topbar-switch-label {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--tw-text);
+    white-space: nowrap;
+    user-select: none;
+    cursor: default;
+}
+
+/* Track + handle of the Syncfusion switch, tuned to the token palette.
+   Off = slate-300 track (neutral). On = blue-600 track (primary). */
+.app-topbar-switch .e-switch {
+    width: 38px !important;
+    height: 20px !important;
+    border-radius: 20px;
+    background-color: #cbd5e1;
+    transition: background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    margin: 0;
+}
+
+.app-topbar-switch .e-switch.e-switch-active,
+.app-topbar-switch .e-switch[aria-checked="true"] {
+    background-color: var(--tw-primary);
+}
+
+.app-topbar-switch .e-switch .e-handle {
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: var(--tw-surface);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.24);
+    transition: left 0.2s ease-in-out;
+}
+
+.app-topbar-switch .e-switch.e-switch-active .e-handle,
+.app-topbar-switch .e-switch[aria-checked="true"] .e-handle {
+    left: 20px;
+}
+
+.app-topbar-switch .e-switch:focus-visible {
+    outline: none;
+    box-shadow: var(--tw-focus-ring);
 }
 
 .app-bottom {
@@ -210,10 +300,12 @@ body .col-lg-9 {
 
 .rag-chat-empty {
     margin: auto;
-    color: #64748b;
+    padding: 20px 16px;
+    color: var(--tw-text-muted);
     font-size: 13px;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     text-align: center;
-    line-height: 1.5;
+    line-height: 1.6;
 }
 
 .rag-message {
@@ -245,14 +337,16 @@ body .col-lg-9 {
 }
 
 .rag-message-user .rag-bubble {
-    background: #2563eb;
+    background: var(--tw-primary);
     color: #fff;
     border-bottom-right-radius: 2px;
+    box-shadow: var(--tw-shadow-md);
 }
 
 .rag-message-assistant .rag-bubble {
-    background: #eef2f7;
+    background: var(--tw-surface-muted);
     color: #111827;
+    border: 1px solid var(--tw-border);
     border-bottom-left-radius: 2px;
 }
 
@@ -269,7 +363,7 @@ body .col-lg-9 {
 }
 
 .rag-source-anchor {
-    color: #2563eb;
+    color: var(--tw-primary);
     font-weight: 600;
     text-decoration: underline;
     cursor: pointer;
@@ -277,7 +371,7 @@ body .col-lg-9 {
 
 .rag-source-anchor:hover,
 .rag-source-anchor:focus {
-    color: #1d4ed8;
+    color: var(--tw-primary-hover);
     text-decoration: underline;
 }
 
@@ -286,38 +380,43 @@ body .col-lg-9 {
     display: flex;
     gap: 8px;
     padding: 10px 14px;
-    background: #f8fafc;
+    background: var(--tw-surface-muted);
+    border-top: 1px solid var(--tw-border);
 }
 
 .rag-question-input {
     flex: 1 1 auto;
     padding: 10px 12px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
+    border: 1px solid #cbd5e1;
+    border-radius: var(--tw-radius-sm);
     font-size: 13px;
     font-family: inherit;
     min-width: 0;
+    background: var(--tw-surface);
+    transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .rag-question-input:focus {
     outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+    border-color: var(--tw-primary);
+    box-shadow: var(--tw-focus-ring);
 }
 
 .rag-send-button {
-    background: #2563eb;
+    background: var(--tw-primary);
     color: #fff;
     border: none;
     padding: 8px 14px;
-    border-radius: 6px;
+    border-radius: var(--tw-radius-sm);
     cursor: pointer;
     font-size: 13px;
+    font-weight: 600;
     font-family: inherit;
+    transition: background-color 0.15s;
 }
 
 .rag-send-button:hover:not(:disabled) {
-    background: #1d4ed8;
+    background: var(--tw-primary-hover);
 }
 
 .rag-send-button:disabled {
