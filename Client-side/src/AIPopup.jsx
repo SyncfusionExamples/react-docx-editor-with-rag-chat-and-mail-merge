@@ -38,53 +38,6 @@ const RICH_TEXT_RULE = " Always respond in rich HTML format with real text forma
 
 let aiResults = [];
 
-function levenshtein(a, b) {
-  const dp = Array(a.length + 1).fill(0).map(() => Array(b.length + 1).fill(0));
-  for (let i = 0; i <= a.length; i++) dp[i][0] = i;
-  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
-    }
-  }
-  return dp[a.length][b.length];
-}
-
-function isSimilar(a, b, threshold = 1) {
-  if (!a || !b) return false;
-  return levenshtein(a, b) <= threshold;
-}
-
-function highlightDifferences(original, modified) {
-  const oWords = (original || '').split(/\s+/);
-  const mWords = (modified || '').split(/\s+/);
-  // const lcs = Array(oWords.length + 1).fill(0).map(() => Array(mWords.length + 1).fill(0));
-  // for (let i = 0; i < oWords.length; i++) {
-  //   for (let j = 0; j < mWords.length; j++) {
-  //     if (oWords[i] === mWords[j] || isSimilar(oWords[i], mWords[j])) lcs[i + 1][j + 1] = lcs[i][j] + 1;
-  //     else lcs[i + 1][j + 1] = Math.max(lcs[i + 1][j], lcs[i][j + 1]);
-  //   }
-  // }
-
-  const unchanged = new Set();
-  // let x = oWords.length, y = mWords.length;
-
-  // while (x > 0 && y > 0) {
-  //   if (oWords[x - 1] === mWords[y - 1] || isSimilar(oWords[x - 1], mWords[y - 1])) { unchanged.add(`${x - 1}|${y - 1}`); x--; y--; }
-  //   else if (lcs[x - 1][y] >= lcs[x][y - 1]) x--;
-  //   else y--;
-  // }
-
-  const highlightedOriginal = oWords.map((w, i) =>
-    [...unchanged].some(k => k.startsWith(`${i}|`)) ? w : `<span class="e-original-word">${w}</span>`).join(' ');
-
-  const highlightedModified = mWords.map((w, j) =>
-    [...unchanged].some(k => k.endsWith(`|${j}`)) ? w : `<span class="e-original-word">${w}</span>`).join(' ');
-
-  return { highlightedOriginal, highlightedModified };
-}
-
 export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistInitialPos, isAIEnabled, showChatFab = true }) {
   const [isSmartEditor, setIsSmartEditor] = useState(false);
   const [popupType, setPopupType] = useState('');
@@ -503,9 +456,14 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
           out = out.replace("```html\n", "").replace("\n```", "");
         }
         out = aiResults.length > 0 ? aiResults[0] : out;
-        const { highlightedOriginal, highlightedModified } = highlightDifferences(`<p>${sourceText}</p>`, out);
-        setInHtml(highlightedOriginal);
-        setOutHtml(highlightedModified);
+        // Display content directly — no word-by-word diff comparison.
+        // The old highlightDifferences() path wrapped every word in
+        // <span class="e-original-word"> (red + strikethrough), which read
+        // like track-changes markup in the smart editor dialog. Show the
+        // plain source text on the left and the AI output as-is on the
+        // right instead.
+        setInHtml(`<p>${sourceText}</p>`);
+        setOutHtml(out);
         setSuggestions(prev => {
           setCurrentIndex(0);
           return aiResults;
