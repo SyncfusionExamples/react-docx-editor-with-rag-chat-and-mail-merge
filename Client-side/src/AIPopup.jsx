@@ -27,6 +27,15 @@ const TranslateList = ['English', 'Simplified Chinese', 'Spanish', 'French', 'Ar
 
 const AiTask = { Generate: 'Generate', Rephrase: 'Rephrase', Translate: 'Translate', Grammar: 'Grammar' };
 
+// Rich-formatting instruction appended to every AI system prompt so
+// the generated content carries real Word formatting by the time it is
+// pasted into the document (the HTML → SFDT conversion happens server
+// side in POST /LoadString via WordDocument.LoadString(content,
+// FormatType.Html)). Only tags the Syncfusion HTML importer understands
+// are requested. Appended to each system prompt in buildPrompt so the
+// rule is consistent across Generate / Rephrase / Translate / Grammar.
+const RICH_TEXT_RULE = " Always respond in rich HTML format with real text formatting: use <h1> to <h4> tags for headings and subheadings, wrap paragraphs in <p> tags, wrap important key terms in <b> tags for bold, use <i> tags for italic emphasis, and <u> tags for underlined words. Use <ul> with <li> tags for bulleted lists and <ol> with <li> tags for numbered lists where suitable. Never apply formatting with markdown symbols such as ** or #. Do not include <html>, <head>, <body>, or ``` code fence tags.";
+
 let aiResults = [];
 
 function levenshtein(a, b) {
@@ -180,13 +189,13 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
         if (!Regenerate) {
           return (currentResult.length > 0) ? {
             messages: [
-              { role: "system", content: `You are a helpful assistant. Your task is to analyze the provided text and revise it based on the provided suggestion: '${content}'. Please adjust the text to reflect a tone of '${toneValue}', formatted in '${formatValue}' style, and maintain a length of '${lengthValue}'. Always respond in proper HTML format, excluding <html>, <head>, and <body> tags.` },
+              { role: "system", content: `You are a helpful assistant. Your task is to analyze the provided text and revise it based on the provided suggestion: '${content}'. Please adjust the text to reflect a tone of '${toneValue}', formatted in '${formatValue}' style, and maintain a length of '${lengthValue}'. Always respond in proper HTML format, excluding <html>, <head>, and <body> tags.${RICH_TEXT_RULE}` },
               { role: "user", content: currentResult }
             ],
             model: "gpt-4",
           } : {
             messages: [
-              { role: "system", content: `You are a helpful assistant. Your task is to generate content based on the provided text. Please adjust the text to reflect a tone of '${toneValue}', formatted in '${formatValue}' style, and maintain a length of '${lengthValue}'. Always respond in proper text format not a md format. Always respond in proper HTML format, excluding <html>, <head>, and <body> tags.` },
+              { role: "system", content: `You are a helpful assistant. Your task is to generate content based on the provided text. Please adjust the text to reflect a tone of '${toneValue}', formatted in '${formatValue}' style, and maintain a length of '${lengthValue}'. Always respond in proper text format not a md format. Always respond in proper HTML format, excluding <html>, <head>, and <body> tags.${RICH_TEXT_RULE}` },
               { role: "user", content: content }
             ],
             model: "gpt-4",
@@ -194,7 +203,7 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
         } else {
           return {
             messages: [
-              { role: "system", content: `You are a helpful assistant. Your task is to analyze the provided text and rephrase it. Please adjust the text to reflect a tone of '${toneValue}', formatted in '${formatValue}' style, and maintain a length of '${lengthValue}'. Always respond in proper HTML format, excluding <html>, <head>, and <body> tags.` },
+              { role: "system", content: `You are a helpful assistant. Your task is to analyze the provided text and rephrase it. Please adjust the text to reflect a tone of '${toneValue}', formatted in '${formatValue}' style, and maintain a length of '${lengthValue}'. Always respond in proper HTML format, excluding <html>, <head>, and <body> tags.${RICH_TEXT_RULE}` },
               { role: "user", content: currentResult }
             ],
             model: "gpt-4",
