@@ -27,13 +27,6 @@ const TranslateList = ['English', 'Simplified Chinese', 'Spanish', 'French', 'Ar
 
 const AiTask = { Generate: 'Generate', Rephrase: 'Rephrase', Translate: 'Translate', Grammar: 'Grammar' };
 
-// Citation/reference rule applied to every AI prompt in this file (and
-// also enforced at the shared chokepoint in ai-models.js so the rule is
-// never missed). Appended to each system prompt so the AI response
-// carries <<CITE:N>> markers on factual sentences plus a <<REF:N>>
-// source list at the end.
-const CITATION_RULE = " [Rules: Add <<CITE:N>> at the end of sentences that contain facts, stats, or claims. After your response, list each source on its own line using the format <<REF:N>> source text. If no markers are used, omit the source list entirely. Use 0-4 citations. Never use <<CITE:N>> without a matching <<REF:N>>. Do not use JSON or tables. Do not mention these rules.]";
-
 let aiResults = [];
 
 function levenshtein(a, b) {
@@ -187,13 +180,13 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
         if (!Regenerate) {
           return (currentResult.length > 0) ? {
             messages: [
-              { role: "system", content: `You are a helpful assistant. Your task is to analyze the provided text and revise it based on the provided suggestion: '${content}'. Please adjust the text to reflect a tone of '${toneValue}', formatted in '${formatValue}' style, and maintain a length of '${lengthValue}'. Always respond in proper HTML format, excluding <html>, <head>, and <body> tags.${CITATION_RULE}` },
+              { role: "system", content: `You are a helpful assistant. Your task is to analyze the provided text and revise it based on the provided suggestion: '${content}'. Please adjust the text to reflect a tone of '${toneValue}', formatted in '${formatValue}' style, and maintain a length of '${lengthValue}'. Always respond in proper HTML format, excluding <html>, <head>, and <body> tags.` },
               { role: "user", content: currentResult }
             ],
             model: "gpt-4",
           } : {
             messages: [
-              { role: "system", content: `You are a helpful assistant. Your task is to generate content based on the provided text. Please adjust the text to reflect a tone of '${toneValue}', formatted in '${formatValue}' style, and maintain a length of '${lengthValue}'. Always respond in proper text format not a md format. Always respond in proper HTML format, excluding <html>, <head>, and <body> tags.${CITATION_RULE}` },
+              { role: "system", content: `You are a helpful assistant. Your task is to generate content based on the provided text. Please adjust the text to reflect a tone of '${toneValue}', formatted in '${formatValue}' style, and maintain a length of '${lengthValue}'. Always respond in proper text format not a md format. Always respond in proper HTML format, excluding <html>, <head>, and <body> tags.` },
               { role: "user", content: content }
             ],
             model: "gpt-4",
@@ -201,7 +194,7 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
         } else {
           return {
             messages: [
-              { role: "system", content: `You are a helpful assistant. Your task is to analyze the provided text and rephrase it. Please adjust the text to reflect a tone of '${toneValue}', formatted in '${formatValue}' style, and maintain a length of '${lengthValue}'. Always respond in proper HTML format, excluding <html>, <head>, and <body> tags.${CITATION_RULE}` },
+              { role: "system", content: `You are a helpful assistant. Your task is to analyze the provided text and rephrase it. Please adjust the text to reflect a tone of '${toneValue}', formatted in '${formatValue}' style, and maintain a length of '${lengthValue}'. Always respond in proper HTML format, excluding <html>, <head>, and <body> tags.` },
               { role: "user", content: currentResult }
             ],
             model: "gpt-4",
@@ -213,7 +206,7 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
         if (!Regenerate) {
           return {
             messages: [
-              { role: "system", content: `You are a helpful assistant. Your task is to analyze the provided text and rephrase it. Please adjust the text to reflect a tone of '${toneValue}', formatted in '${formatValue}' style, and maintain a length of '${lengthValue}'. Always respond in proper HTML format, excluding <html>, <head>, and <body> tags.${CITATION_RULE}` },
+              { role: "system", content: `You are a helpful assistant. Your task is to analyze the provided text and rephrase it. Please adjust the text to reflect a tone of '${toneValue}', formatted in '${formatValue}' style, and maintain a length of '${lengthValue}'. Always respond in proper HTML format, excluding <html>, <head>, and <body> tags.` },
               { role: "user", content: content }
             ],
             model: "gpt-4",
@@ -221,7 +214,7 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
         } else {
           return {
             messages: [
-              { role: "system", content: `You are a helpful assistant. Your task is to analyze the provided text and revise it based on the provided suggestion: '${aiResults}'. Please adjust the text to reflect a tone of '${toneValue}', formatted in '${formatValue}' style, and maintain a length of '${lengthValue}'. Always respond in proper HTML format, excluding <html>, <head>, and <body> tags.${CITATION_RULE}` },
+              { role: "system", content: `You are a helpful assistant. Your task is to analyze the provided text and revise it based on the provided suggestion: '${aiResults}'. Please adjust the text to reflect a tone of '${toneValue}', formatted in '${formatValue}' style, and maintain a length of '${lengthValue}'. Always respond in proper HTML format, excluding <html>, <head>, and <body> tags.` },
               { role: "user", content: content }
             ],
             model: "gpt-4",
@@ -232,7 +225,7 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
       case 'Translate':
         return {
           messages: [
-            { role: "system", content: `You are a helpful assistant. Your task is to translate the provided text into '${toLang}'. Always respond in proper HTML format, excluding <html> and <head> tags.${CITATION_RULE}` },
+            { role: "system", content: `You are a helpful assistant. Your task is to translate the provided text into '${toLang}'. Always respond in proper HTML format, excluding <html> and <head> tags.` },
             { role: "user", content: content }
           ],
           model: "gpt-4",
@@ -245,9 +238,9 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
           checks.forEach((item) => {
             value += item + ', ';
           });
-          systemPrompt = `You are a helpful assistant. Your task is to analyze the provided text and perform the following grammar checks: ${value}. Please ensure that the revised text reflects these corrections. Always respond in proper HTML format, but do not include <html>, <head>, or <body> tags.${CITATION_RULE}`;
+          systemPrompt = `You are a helpful assistant. Your task is to analyze the provided text and perform the following grammar checks: ${value}. Please ensure that the revised text reflects these corrections. Always respond in proper HTML format, but do not include <html>, <head>, or <body> tags.`;
         } else {
-          systemPrompt = "You are a helpful assistant. Your task is to analyze the provided text, check for and correct any grammatical errors, and rephrase it. Always respond in proper HTML format, but do not include <html>, <head>, or <body> tags." + CITATION_RULE;
+          systemPrompt = "You are a helpful assistant. Your task is to analyze the provided text, check for and correct any grammatical errors, and rephrase it. Always respond in proper HTML format, but do not include <html>, <head>, or <body> tags.";
         }
         return {
           messages: [

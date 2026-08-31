@@ -69,19 +69,33 @@ namespace DOCXEditorAPIServices
             services.Configure<AzureOpenAIOptions>(Configuration.GetSection("AzureOpenAI"));
             services.AddSingleton<AzureOpenAIProvider>();
 
-            // RAG (Retrieval-Augmented Generation) pipeline. RagService
-            // owns the chunking + embedding + retrieval + grounded chat
-            // flow for the /api/upload and /api/chat endpoints exposed
-            // by RagController. It reads its Azure OpenAI settings
-            // (Endpoint / ApiKey / EmbeddingDeploymentName /
-            // ChatDeploymentName) from the AzureOpenAI config section
-            // via the factory below; App reads them at first resolution.
-            services.AddSingleton(sp => new DOCXEditorAPIServices.Services.RagService(
-                sp.GetRequiredService<IConfiguration>()["AzureOpenAI:Endpoint"] ?? string.Empty,
-                sp.GetRequiredService<IConfiguration>()["AzureOpenAI:ApiKey"] ?? string.Empty,
-                sp.GetRequiredService<IConfiguration>()["AzureOpenAI:EmbeddingDeploymentName"] ?? string.Empty,
-                sp.GetRequiredService<IConfiguration>()["AzureOpenAI:ChatDeploymentName"] ?? string.Empty,
-                sp.GetRequiredService<IWebHostEnvironment>()));
+            // RAG (Retrieval-Augmented Generation) pipeline. RagService owns
+            // the chunking + embedding + retrieval + grounded chat flow
+            // for the AI Assistant feature (DocumentEditorController's
+            // /AskQuestion endpoint). All Azure OpenAI credentials are
+            // read from the AzureOpenAI section of appsettings.json:
+            //
+            //   EmbeddingEndpoint / EmbeddingApiKey /
+            //   EmbeddingDeploymentName  -> vector search
+            //
+            //   ChatEndpoint / ChatApiKey / ChatDeploymentName
+            //                          -> grounded answers
+            //
+            // Changing credentials only requires editing the JSON —
+            // no rebuild or code change is needed.
+            services.AddSingleton(sp =>
+            {
+                IConfiguration cfg = sp.GetRequiredService<IConfiguration>();
+
+                return new DOCXEditorAPIServices.Services.RagService(
+                    cfg["AzureOpenAI:EmbeddingEndpoint"] ?? string.Empty,
+                    cfg["AzureOpenAI:EmbeddingApiKey"] ?? string.Empty,
+                    cfg["AzureOpenAI:EmbeddingDeploymentName"] ?? string.Empty,
+                    cfg["AzureOpenAI:ChatEndpoint"] ?? string.Empty,
+                    cfg["AzureOpenAI:ChatApiKey"] ?? string.Empty,
+                    cfg["AzureOpenAI:ChatDeploymentName"] ?? string.Empty,
+                    sp.GetRequiredService<IWebHostEnvironment>());
+            });
 
             // "AllowAllOrigins" CORS policy is what the RAG controller
             // enables on its routes. The existing DocumentEditorController

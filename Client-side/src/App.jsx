@@ -195,10 +195,6 @@ export const App = () => {
     container.current.documentEditorSettings.showRuler = true;
     editor.resize();
 
-    let spellChecker = editor.spellChecker;
-    spellChecker.languageID = 1033;
-    spellChecker.removeUnderline = false;
-    spellChecker.allowSpellCheckAndSuggestion = true;
     window.addEventListener('resize', onResize);
     // Auto-load the default template from the server
     loadDefaultDocument();
@@ -1128,7 +1124,6 @@ const onPreviewWithData = useCallback(async () => {
                   serviceUrl={SERVICE_URL}
                   enableToolbar={true}
                   toolbarMode='Ribbon'
-                  enableSpellCheck={true}
                   created={onContainerCreated}
                 />
                 <AIPopup

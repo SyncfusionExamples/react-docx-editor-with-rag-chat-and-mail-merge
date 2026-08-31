@@ -1095,10 +1095,6 @@ body .col-lg-9 {
     height: 100% !important;
 }
 
-.e-documenteditorcontainer .e-de-status-bar .e-btn-pageweb-spellcheck {
-    margin-left: calc(100% - 400px) !important;
-}
-
 .e-ribbon .help-pane-content {
     color: #0F172AE0;
     display: flex;

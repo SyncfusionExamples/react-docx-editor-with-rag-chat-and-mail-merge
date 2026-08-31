@@ -73,32 +73,57 @@ namespace DOCXEditorAPIServices.Services
             };
 
         public RagService(
-            string azureOpenAIEndpoint,
-            string azureOpenAIKey,
+            string embeddingEndpoint,
+            string embeddingApiKey,
             string embeddingDeploymentName,
+            string chatEndpoint,
+            string chatApiKey,
             string chatDeploymentName,
             IWebHostEnvironment hostingEnvironment)
         {
-            //if (string.IsNullOrWhiteSpace(azureOpenAIEndpoint))
-            //    throw new InvalidOperationException("AzureOpenAI:Endpoint is missing.");
+            // All credential values come from appsettings.json
+            // (AzureOpenAI section) via the DI factory in Startup.cs,
+            // so switching Azure OpenAI resources requires only an
+            // appsettings edit — no code changes.
+            if (string.IsNullOrWhiteSpace(embeddingEndpoint))
+                throw new InvalidOperationException(
+                    "AzureOpenAI:EmbeddingEndpoint is missing in appsettings.json.");
 
-            //if (string.IsNullOrWhiteSpace(azureOpenAIKey))
-            //    throw new InvalidOperationException("AzureOpenAI:ApiKey is missing.");
+            if (string.IsNullOrWhiteSpace(embeddingApiKey))
+                throw new InvalidOperationException(
+                    "AzureOpenAI:EmbeddingApiKey is missing in appsettings.json.");
 
-            //if (string.IsNullOrWhiteSpace(embeddingDeploymentName))
-            //    throw new InvalidOperationException("AzureOpenAI:EmbeddingDeploymentName is missing.");
+            if (string.IsNullOrWhiteSpace(embeddingDeploymentName))
+                throw new InvalidOperationException(
+                    "AzureOpenAI:EmbeddingDeploymentName is missing in appsettings.json.");
 
-            //if (string.IsNullOrWhiteSpace(chatDeploymentName))
-            //    throw new InvalidOperationException("AzureOpenAI:ChatDeploymentName is missing.");
+            if (string.IsNullOrWhiteSpace(chatEndpoint))
+                throw new InvalidOperationException(
+                    "AzureOpenAI:ChatEndpoint is missing in appsettings.json.");
 
-            AzureOpenAIClient azureOpenAIClient = new(
-       new Uri("https://ai272650.openai.azure.com/"), new AzureKeyCredential("2phtOuzowFukgc9zLcrFCCqwzzzExvbh1zmUcoyiWBaIQ9dCxNHYJQQJ99CHAC1i4TkXJ3w3AAABACOGQYke"));
-            _embeddingClient = azureOpenAIClient.GetEmbeddingClient("text-embedding-3-small");
+            if (string.IsNullOrWhiteSpace(chatApiKey))
+                throw new InvalidOperationException(
+                    "AzureOpenAI:ChatApiKey is missing in appsettings.json.");
 
+            if (string.IsNullOrWhiteSpace(chatDeploymentName))
+                throw new InvalidOperationException(
+                    "AzureOpenAI:ChatDeploymentName is missing in appsettings.json.");
 
-            AzureOpenAIClient azureOpenAIClient1 = new(new Uri("https://openainew-272650.openai.azure.com/"), new AzureKeyCredential("7jvX97fTC1MppzLUMIMlcpoYnn6I1orGiUSZfoANGSZr0Soc30HPJQQJ99CHACYeBjFXJ3w3AAABACOGvoLA"));
-            _chatClient = azureOpenAIClient1.GetChatClient("gpt-5.1");
+            // Embedding resource (vectorizes chunks + questions).
+            AzureOpenAIClient embeddingClientWrapper = new(
+                new Uri(embeddingEndpoint),
+                new AzureKeyCredential(embeddingApiKey));
 
+            _embeddingClient = embeddingClientWrapper.GetEmbeddingClient(embeddingDeploymentName);
+
+            // Chat resource (grounded answers for the AI Assistant).
+            // May be a DIFFERENT Azure OpenAI resource than the
+            // embedding one, or the same endpoint/key if configured so.
+            AzureOpenAIClient chatClientWrapper = new(
+                new Uri(chatEndpoint),
+                new AzureKeyCredential(chatApiKey));
+
+            _chatClient = chatClientWrapper.GetChatClient(chatDeploymentName);
 
             // ------------------------------------------------------------
             // Local storage root: wwwroot/rag

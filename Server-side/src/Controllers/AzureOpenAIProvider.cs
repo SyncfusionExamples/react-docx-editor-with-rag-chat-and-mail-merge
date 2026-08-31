@@ -1,10 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Azure;
 using Azure.AI.OpenAI;
 using DOCXEditorAPIServices.Models;
 using Microsoft.Extensions.Options;
+using OpenAI.Chat;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace DOCXEditorAPIServices.Providers
 {
@@ -25,16 +26,31 @@ namespace DOCXEditorAPIServices.Providers
             if (request.Messages == null || request.Messages.Count == 0)
                 throw new ArgumentException("At least one chat message is required.");
 
-            if (string.IsNullOrWhiteSpace(_settings.Endpoint) ||
-                string.IsNullOrWhiteSpace(_settings.ApiKey) ||
-                string.IsNullOrWhiteSpace(_settings.DeploymentName))
+            // Prefer the dedicated chat resource (ChatEndpoint/ChatApiKey/
+            // ChatDeploymentName). Fall back to the shared Endpoint/ApiKey/
+            // DeploymentName keys when the chat-specific keys are missing.
+            string chatEndpoint = string.IsNullOrWhiteSpace(_settings.ChatEndpoint)
+                ? _settings.Endpoint
+                : _settings.ChatEndpoint;
+            string chatApiKey = string.IsNullOrWhiteSpace(_settings.ChatApiKey)
+                ? _settings.ApiKey
+                : _settings.ChatApiKey;
+            string chatDeploymentName = string.IsNullOrWhiteSpace(_settings.ChatDeploymentName)
+                ? _settings.DeploymentName
+                : _settings.ChatDeploymentName;
+
+            if (string.IsNullOrWhiteSpace(chatEndpoint) ||
+                string.IsNullOrWhiteSpace(chatApiKey) ||
+                string.IsNullOrWhiteSpace(chatDeploymentName))
             {
-                return "Azure OpenAI is not configured. Set AzureOpenAI:Endpoint, AzureOpenAI:ApiKey, and AzureOpenAI:DeploymentName in appsettings.json.";
+                return "Azure OpenAI is not configured. Set AzureOpenAI:ChatEndpoint, AzureOpenAI:ChatApiKey, and AzureOpenAI:ChatDeploymentName (or the shared Endpoint/ApiKey/DeploymentName) in appsettings.json.";
             }
 
-            var client = new AzureOpenAIClient(
-                new Uri(_settings.Endpoint),
-                new AzureKeyCredential(_settings.ApiKey));
+            AzureOpenAIClient chatClientWrapper = new(
+              new Uri(chatEndpoint),
+              new AzureKeyCredential(chatApiKey));
+
+            var chatClient = chatClientWrapper.GetChatClient(chatDeploymentName);
 
             var chatMessages = new List<OpenAI.Chat.ChatMessage>();
 
@@ -81,7 +97,7 @@ namespace DOCXEditorAPIServices.Providers
                 }
             }
 
-            var chatClient = client.GetChatClient(_settings.DeploymentName);
+            
             OpenAI.Chat.ChatCompletion completion = await chatClient.CompleteChatAsync(chatMessages, options);
 
             return completion.Content.Count > 0 ? completion.Content[0].Text : string.Empty;
@@ -95,5 +111,12 @@ namespace DOCXEditorAPIServices.Providers
         public string ApiKey { get; set; } = string.Empty;
 
         public string DeploymentName { get; set; } = string.Empty;
+
+        // Dedicated chat resource (preferred for chat completions).
+        public string ChatEndpoint { get; set; } = string.Empty;
+
+        public string ChatApiKey { get; set; } = string.Empty;
+
+        public string ChatDeploymentName { get; set; } = string.Empty;
     }
 }
