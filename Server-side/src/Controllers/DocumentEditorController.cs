@@ -1,7 +1,7 @@
 ﻿using System;
-using System.Linq;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using BitMiracle.LibTiff.Classic;
@@ -591,6 +591,22 @@ namespace DOCXEditorAPIServices.Controllers
             return SaveDocument(document, format, name);
         }
 
+        [AcceptVerbs("Post")]
+        [HttpPost]
+        [EnableCors("AllowAllOrigins")]
+        [Route("ExportAsStream")]
+        public Stream ExportAsStream([FromBody] SaveParameter data)
+        {
+            string name = data.FileName;
+            string format = RetrieveFileType(name);
+            if (string.IsNullOrEmpty(name))
+            {
+                name = "Document1.doc";
+            }
+            WDocument document = WordDocument.Save(data.Content);
+            return SaveDocument(document, format);
+        }
+
         private string RetrieveFileType(string name)
         {
             int index = name.LastIndexOf('.');
@@ -623,6 +639,19 @@ namespace DOCXEditorAPIServices.Controllers
             WDocument document = this.GetDocument(data);
             return SaveDocument(document, format, fileName);
         }
+
+        private Stream SaveDocument(WDocument document, string format)
+        {
+            Stream docStream = new MemoryStream();
+            WFormatType type = GetWFormatType(format);
+            document.Save(docStream, type);
+            document.Close();
+            docStream.Position = 0;
+            return docStream;
+        }
+
+
+
 
         private FileStreamResult SaveDocument(WDocument document, string format, string fileName)
         {

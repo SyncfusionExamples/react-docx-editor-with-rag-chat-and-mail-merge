@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Newtonsoft.Json;
 using Syncfusion.EJ2.SpellChecker;
+using Microsoft.AspNetCore.Http;
 
 namespace DOCXEditorAPIServices
 {
@@ -68,8 +69,27 @@ namespace DOCXEditorAPIServices
             services.Configure<AzureOpenAIOptions>(Configuration.GetSection("AzureOpenAI"));
             services.AddSingleton<AzureOpenAIProvider>();
 
+            // RAG (Retrieval-Augmented Generation) pipeline. RagService
+            // owns the chunking + embedding + retrieval + grounded chat
+            // flow for the /api/upload and /api/chat endpoints exposed
+            // by RagController. It reads its Azure OpenAI settings
+            // (Endpoint / ApiKey / EmbeddingDeploymentName /
+            // ChatDeploymentName) from the AzureOpenAI config section.
+            services.AddSingleton<DOCXEditorAPIServices.Services.RagService>();
+
+            // "AllowAllOrigins" CORS policy is what the RAG controller
+            // enables on its routes. The existing DocumentEditorController
+            // already uses this name on its [EnableCors] attributes, so
+            // re-register it under the same name here keeps both working.
             services.AddCors(options =>
             {
+                options.AddPolicy("AllowAllOrigins",
+                builder =>
+                {
+                    builder.AllowAnyOrigin()
+                      .AllowAnyMethod()
+                      .AllowAnyHeader();
+                });
                 options.AddPolicy(MyAllowSpecificOrigins,
                 builder =>
                 {
@@ -98,6 +118,29 @@ namespace DOCXEditorAPIServices
                 app.UseHsts();
             }
             app.UseHttpsRedirection();
+
+            // ------------------------------------------------------------
+            // Block direct HTTP access to local RAG storage inside wwwroot.
+            // RagService persists uploaded files under wwwroot/rag/uploads
+            // and the vector store under wwwroot/rag/store. Without this
+            // guard, UseStaticFiles() would happily serve those files to
+            // anyone who knows the URL — leaking uploaded documents and
+            // the embedding store. The RAG endpoints (/api/upload,
+            // /api/chat) are the only intended access path.
+            // ------------------------------------------------------------
+            app.Use(async (context, next) =>
+            {
+                if (context.Request.Path.StartsWithSegments("/rag/uploads", System.StringComparison.OrdinalIgnoreCase) ||
+                    context.Request.Path.StartsWithSegments("/rag/store", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    context.Response.StatusCode = Microsoft.AspNetCore.Http.StatusCodes.Status403Forbidden;
+                    await context.Response.WriteAsync("Forbidden");
+                    return;
+                }
+
+                await next();
+            });
+
             app.UseDefaultFiles();
             app.UseStaticFiles();
             app.UseRouting();
