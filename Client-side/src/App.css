@@ -184,6 +184,122 @@ body .col-lg-9 {
     background: #fff;
 }
 
+/* --- RAG Chat panel (replaces AIAssistViewComponent) ---
+   Lightweight React chat panel: a scrollable chat window and an input
+   area with a question input + Send button. Scoped under .rag-chat so
+   the styles never leak into the rest of the app. */
+.rag-chat {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    min-height: 0;
+    background: #f3f6fb;
+    box-sizing: border-box;
+}
+
+.rag-chat-window {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 14px;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+}
+
+.rag-chat-empty {
+    margin: auto;
+    color: #64748b;
+    font-size: 13px;
+    text-align: center;
+    line-height: 1.5;
+}
+
+.rag-message {
+    margin-bottom: 12px;
+    display: flex;
+}
+
+.rag-message-user {
+    justify-content: flex-end;
+}
+
+.rag-message-assistant {
+    justify-content: flex-start;
+}
+
+.rag-message-loading .rag-bubble {
+    color: #64748b;
+    font-style: italic;
+}
+
+.rag-bubble {
+    max-width: 85%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 13px;
+}
+
+.rag-message-user .rag-bubble {
+    background: #2563eb;
+    color: #fff;
+    border-bottom-right-radius: 2px;
+}
+
+.rag-message-assistant .rag-bubble {
+    background: #eef2f7;
+    color: #111827;
+    border-bottom-left-radius: 2px;
+}
+
+.rag-chat-input-area {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 8px;
+    padding: 10px 14px;
+    background: #f8fafc;
+}
+
+.rag-question-input {
+    flex: 1 1 auto;
+    padding: 10px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    min-width: 0;
+}
+
+.rag-question-input:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.rag-send-button {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+}
+
+.rag-send-button:hover:not(:disabled) {
+    background: #1d4ed8;
+}
+
+.rag-send-button:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+}
+
 .app-panel-placeholder {
     font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-size: 13px;

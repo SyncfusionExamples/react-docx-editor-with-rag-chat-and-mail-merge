@@ -490,6 +490,21 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
     setTimeout(() => runTask(action), 100);
   };
 
+  const positionAIAssistDialog = () => {
+    const button = document.querySelector('.ai-assist-btn');
+    const dialog = document.querySelector('.ai-assist-dialog');
+
+    if (!button || !dialog) {
+      return;
+    }
+
+    const buttonRect = button.getBoundingClientRect();
+
+    dialog.style.position = 'fixed';
+    dialog.style.left = `${Math.round(buttonRect.left)}px`;
+    dialog.style.top = `${Math.round(buttonRect.bottom + 4)}px`;
+    dialog.style.transform = 'none';
+  };
 
   const openAssistMenu = (ev) => {
     ev?.preventDefault?.();
@@ -500,10 +515,12 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
       setPopupType(AiTask.Generate);
       setIsSmartEditor(false);
       setInHtml(''); setOutHtml(''); setUserPrompt(''); setSuggestions([]);
-      const pos = window.getAIAssistPopupPosition ? window?.getAIAssistPopupPosition?.() : { x: 200, y: 160 };
-      setDialogPos({ x: String(Math.round(pos.x)), y: String(Math.round(pos.y)) });
       setGenVisible(true);
-      requestAnimationFrame(() => genDialogRef.current?.refreshPosition?.());
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          positionAIAssistDialog();
+        });
+      });
       return;
     }
     if (genVisible || stopVisible) return;
@@ -528,7 +545,44 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
     onShowChatPane?.();
   };
 
-  const onReplace = async () => { await replaceSelectionWithPlainText(outHtml); setSmartVisible(false); };
+  // Read the latest visible output HTML directly from the rendered DOM
+  // pane instead of relying on the React `outHtml` state. The user is
+  // looking at the DOM pane; if for any reason React state is a render
+  // behind (Syncfusion ButtonComponent disabled-flag re-eval, footer
+  // template caching, or a state-update race inside runTask), the
+  // captured `outHtml` in the click closure can be empty, causing the
+  // first click to be a no-op and forcing the user to click again. By
+  // grabbing the current pane innerHTML at click time we always replace
+  // exactly what the user sees on the very first click.
+  const getCurrentOutHtmlFromPane = () => {
+    try {
+      const pane = document.getElementById('ai-smart-output-pane');
+      if (pane && pane.innerHTML && pane.innerHTML.trim().length > 0) {
+        return pane.innerHTML;
+      }
+    } catch { /* fall through */ }
+    return outHtml;
+  };
+
+  const onReplace = async () => {
+    // Always read the latest visible content from the DOM pane. The
+    // React `outHtml` state can lag by one render (footer templates
+    // in Syncfusion DialogComponent are function-evaluated; combined
+    // with state-update batching, the click closure can capture a
+    // stale value, which is what caused the "two clicks to replace"
+    // bug). The DOM pane is the single source of truth for what the
+    // user is currently looking at — it gets updated synchronously by
+    // `dangerouslySetInnerHTML` whenever `outHtml` changes, so reading
+    // it here guarantees the click works on the first try.
+    const latestHtml = getCurrentOutHtmlFromPane();
+    if (!latestHtml || !latestHtml.trim()) {
+      // Nothing visible to replace — close the dialog silently.
+      setSmartVisible(false);
+      return;
+    }
+    await replaceSelectionWithPlainText(latestHtml);
+    setSmartVisible(false);
+  };
 
   const prevSuggestion = () => {
     setCurrentIndex(i => {
@@ -648,7 +702,7 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
 
   const smartFooterTemplate = () => (
     <div style={{ display: 'inline-flex' }}>
-      <ButtonComponent cssClass="e-primary" disabled={!outHtml || isLoading} onClick={onReplace}>
+      <ButtonComponent cssClass="e-primary" disabled={isLoading} onClick={onReplace}>
         Replace
       </ButtonComponent>
       {popupType === AiTask.Rephrase && (
@@ -759,27 +813,36 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
       if (!tracking) return;
       tracking = false;
 
-      setTimeout(() => {
-        try {
-          const selText = editorRef?.current?.documentEditor?.selection?.text || '';
-          if (!!selText && selText.trim().length > 0) {
-            setIsSmartEditor(true);
-            assistFabRef.title = 'Refine the content';
-          }
+      useEffect(() => {
+        if (!editorRef?.current) {
+          return;
+        }
 
-          const pos = window?.getAIAssistBtnPosition?.();
-          if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
-            setAssistBtn(prev => ({
-              ...prev,
-              left: Math.round(pos.x),
-              top: Math.round(pos.y)
-            }));
-            // Keep the button visible after mouse selection —
-            // the user needs it to click for the context menu.
-            setFabAssistVisible(true);
-          }
-        } catch { }
-      }, 10);
+        const ed = editorRef.current.documentEditor;
+
+        if (!ed) {
+          return;
+        }
+
+        const onSelectionChange = () => {
+          try {
+            const selection = ed.selection;
+
+            const pos =
+              window?.getAIAssistBtnPosition?.(selection);
+
+            if (pos) {
+              setAssistBtn(prev => ({
+                ...prev,
+                left: Math.round(pos.x),
+                top: Math.round(pos.y)
+              }));
+            }
+          } catch { }
+        };
+
+        ed.selectionChange = onSelectionChange;
+      }, [editorRef, viewerHost]);
     };
 
     viewerEl.addEventListener('mousedown', onMouseDown, false);
@@ -898,11 +961,31 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
     setGenVisible(false);
   };
 
+  const positionGeneratingDraftDialog = () => {
+    const button = document.querySelector('.ai-assist-btn');
+    const dialog = document.querySelector('.e-stop-generating-dialog');
+
+    if (!button || !dialog) {
+      return;
+    }
+
+    const buttonRect = button.getBoundingClientRect();
+
+    dialog.style.position = 'fixed';
+    dialog.style.left = `${Math.round(buttonRect.left)}px`;
+    dialog.style.top = `${Math.round(buttonRect.bottom + 4)}px`;
+    dialog.style.transform = 'none';
+  };
+
   const openStopDialog = () => {
     setGenVisible(false);
-    const pos = window?.getGeneratingDraftPosition?.() || { x: 200, y: 160 };
-    setStopPos({ x: Math.round(pos.x + 24), y: Math.round(pos.y) });
     setStopVisible(true);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        positionGeneratingDraftDialog();
+      });
+    });
   };
 
   const closeStopDialog = () => {
@@ -997,7 +1080,12 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
         target={'#ai-assist'}
         header={isContentGenerated ? 'Generate content' : undefined}
         footerTemplate={isContentGenerated ? generateFooterTemplate : undefined}
-        position={{ X: dialogPos.x, Y: dialogPos.y }}
+        position={{ X: 0, Y: 0 }}
+        open={() => {
+            requestAnimationFrame(() => {
+                positionAIAssistDialog();
+            });
+        }}
         showCloseIcon={false}
         isModal={false}
         width={'45%'}
@@ -1100,7 +1188,7 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
                       </MultiSelectComponent>
                     )}
                   </div>
-                  <div id="e-de-editableDiv" className="pane-text-area" dangerouslySetInnerHTML={{ __html: outHtml }} />
+                  <div id="ai-smart-output-pane" className="pane-text-area" dangerouslySetInnerHTML={{ __html: outHtml }} />
                 </div>
               } />
             </PanesDirective>
@@ -1117,7 +1205,12 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
         isModal={false}
         showCloseIcon={false}
         width="30%"
-        position={{ X: String(stopPos.x), Y: String(stopPos.y) }}
+        position={{ X: 0, Y: 0 }}
+        open={() => {
+          requestAnimationFrame(() => {
+            positionGeneratingDraftDialog();
+          });
+        }}
         content={stopContentTemplate}
       >
       </DialogComponent>

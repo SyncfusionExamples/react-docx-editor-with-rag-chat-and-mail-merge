@@ -3,15 +3,12 @@ import { DocumentEditorContainerComponent, Ribbon } from '@syncfusion/ej2-react-
 import { ButtonComponent } from '@syncfusion/ej2-react-buttons';
 import { TextBoxComponent } from '@syncfusion/ej2-react-inputs';
 import { DialogComponent } from '@syncfusion/ej2-react-popups';
-import { AIAssistViewComponent, ViewsDirective, ViewDirective } from '@syncfusion/ej2-react-interactive-chat';
 import { ListViewComponent } from '@syncfusion/ej2-react-lists';
-import { getDocumentText } from './summarizer.js';
 import AIPopup from './AIPopup.jsx';
 import './editor-helpers.js';
 import './App.css';
 import { L10n } from "@syncfusion/ej2-base";
-import { getAzureChatAIRequest } from './ai-models.js';
-import { SERVICE_URL } from './service-config.js';
+import { SERVICE_URL, API_BASE_URL } from './service-config.js';
 
 DocumentEditorContainerComponent.Inject(Ribbon);
 
@@ -25,18 +22,9 @@ L10n.load({
 
 const SAMPLE_TITLE = 'React DOCX Editor with AI Capababilities';
 
-// Citation/reference rule applied to every AI prompt in this file (and
-// also enforced at the shared chokepoint in ai-models.js so the rule
-// is never missed). Appended to each system prompt so the AI response
-// carries <<CITE:N>> markers on factual sentences plus a <<REF:N>>
-// source list at the end.
-const CITATION_RULE = " [Rules: Add <<CITE:N>> at the end of sentences that contain facts, stats, or claims. After your response, list each source on its own line using the format <<REF:N>> source text. If no markers are used, omit the source list entirely. Use 0-4 citations. Never use <<CITE:N>> without a matching <<REF:N>>. Do not use JSON or tables. Do not mention these rules.]";
-
 export const App = () => {
   const container = useRef(null);
-  const assistInstance = useRef(null);
   const mergeFieldDialogRef = useRef(null);
-  const [openChat] = useState(true);              // AI Chat window is open by default
   const [isAIEnabled] = useState(true);           // AI is always enabled
   // Full-screen loading overlay shown during long-running service calls:
   //   - Initial document load (fetch 1000+ page docx → /Import → openAsync)
@@ -60,7 +48,6 @@ export const App = () => {
     width: 24,
     height: 24
   });
-  const [aiSuggestions, setAiSuggestions] = useState(['Summarize this document']);
   const [mergeFieldName, setMergeFieldName] = useState('');
   const [mergePickerVisible, setMergePickerVisible] = useState(false);
   const templatesListRef = useRef(null);
@@ -121,7 +108,7 @@ export const App = () => {
     container.current?.documentEditor?.resize?.();
     container.current?.ribbon?.ribbon?.refreshLayout?.();
     onZoomFactorChange();
-  }, [openChat, onZoomFactorChange]);
+  }, [onZoomFactorChange]);
 
   const DEFAULT_TEMPLATE_URL = '/templates/DOCX_Fidelity_Complex_Tables_1000_Pages.docx';
 
@@ -157,7 +144,7 @@ export const App = () => {
       });
 
       // 4. POST to /Import (same code path as the original uploader).
-      showLoading('Converting document to SFDT (this may take a moment)…');
+      showLoading('Converting document to SFDT…');
       const formData = new FormData();
       formData.append('files', inputFile, inputFile.name);
 
@@ -845,23 +832,97 @@ const onPreviewWithData = useCallback(async () => {
   }
 }, [previewFile, previewParsed, showLoading, hideLoading]);
 
-  const showChatPane = () => {
-    // The AI Chat window is always visible in this layout; the function is kept
-    // because AIPopup expects it. AIPopup will call onShowChatPane when its
-    // own close handler fires.
-    setAiSuggestions(['Summarize this document']);
-  };
+  // --- RAG Chat (replaces AIAssistViewComponent) ---
+  // A lightweight React chat panel (no Syncfusion AIAssistViewComponent)
+  // that asks questions against the server's RAG knowledge store via
+  // POST /api/chat. The server (RagController + RagService) retrieves the
+  // top-K relevant chunks across ALL indexed files and asks Azure OpenAI
+  // to answer using only that context — there is no per-upload session,
+  // so the chat input is always enabled (files are indexed separately on
+  // the server; the retrieval searches the whole store).
+  const ragQuestionInputRef = useRef(null);
+  const ragChatWindowRef = useRef(null);
+  const [ragIsSending, setRagIsSending] = useState(false);
+  const [ragQuestion, setRagQuestion] = useState('');
+  // ragMessages is a small array of { text, sender } bubbles so React
+  // owns the chat window DOM (no imperative appendChild needed).
+  const [ragMessages, setRagMessages] = useState([]);
 
-  const chatPanelCreated = () => {
-    assistInstance.current.toolbarSettings.itemClicked = (args) => {
-      const itemClass = String(args?.item?.iconCss || '');
-      if (itemClass.includes('e-close')) {
-        // No-op: AI chat window is a permanent part of the layout.
-        // Toggling it is intentionally disabled.
+  // The AI Chat window is always visible in this layout; AIPopup calls
+  // onShowChatPane when its own close handler fires, so the stub stays.
+  const showChatPane = () => { /* no-op: chat panel is always visible */ };
+
+  // RAG chat: POST { question } to /api/chat. The server retrieves the
+  // top-K relevant chunks from the indexed knowledge store and asks
+  // Azure OpenAI to answer using only that context.
+  const ragSendQuestion = useCallback(async () => {
+    const question = ragQuestion.trim();
+    if (!question) return;
+    setRagIsSending(true);
+    // Append the user's question immediately, then a "Thinking…" bubble
+    // that we replace once the response arrives.
+    setRagMessages(prev => prev.concat([
+      { text: question, sender: 'user' },
+      { text: 'Thinking...', sender: 'assistant', loading: true }
+    ]));
+    setRagQuestion('');
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question })
+      });
+      // Replace the "Thinking…" bubble with the real answer (or error).
+      if (!response.ok) {
+        let message = 'Chat request failed.';
+        try {
+          const err = await response.json();
+          message = err.error || err.Error || message;
+        } catch { /* ignore */ }
+        throw new Error(message);
       }
-    };
-    setAiSuggestions(['Summarize this document']);
-  };
+      const result = await response.json();
+      const answer = result.answer || result.Answer || '';
+      setRagMessages(prev => {
+        const next = prev.slice();
+        // Drop the trailing "Thinking…" bubble and append the answer.
+        if (next.length && next[next.length - 1].loading) {
+          next.pop();
+        }
+        next.push({ text: answer, sender: 'assistant' });
+        return next;
+      });
+    } catch (err) {
+      setRagMessages(prev => {
+        const next = prev.slice();
+        if (next.length && next[next.length - 1].loading) {
+          next.pop();
+        }
+        next.push({ text: err?.message || String(err) || 'Chat request failed.', sender: 'assistant' });
+        return next;
+      });
+    } finally {
+      setRagIsSending(false);
+      // Refocus the input for the next question.
+      requestAnimationFrame(() => ragQuestionInputRef.current?.focus?.());
+    }
+  }, [ragQuestion]);
+
+  const ragHandleEnter = useCallback((event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      ragSendQuestion();
+    }
+  }, [ragSendQuestion]);
+
+  // Auto-scroll the chat window to the bottom whenever a new message
+  // arrives so the latest bubble is always visible.
+  useEffect(() => {
+    const win = ragChatWindowRef.current;
+    if (win) {
+      win.scrollTop = win.scrollHeight;
+    }
+  }, [ragMessages]);
 
   return (
     <div className='control-pane'>
@@ -959,7 +1020,7 @@ const onPreviewWithData = useCallback(async () => {
                 <AIPopup
                   editorRef={container}
                   onShowChatPane={showChatPane}
-                  chatOpen={openChat}
+                  chatOpen={true}
                   assistInitialPos={assistBtnPos}
                   isAIEnabled={isAIEnabled}
                   showChatFab={false}
@@ -967,143 +1028,53 @@ const onPreviewWithData = useCallback(async () => {
               </div>
             </main>
 
-            {/* Right column - AI Chat */}
+            {/* Right column - RAG Chat (replaces AIAssistViewComponent).
+                A scrollable chat window and an input area with a question
+                input + Send button. Questions go to POST /api/chat, which
+                retrieves the top-K relevant chunks from the server's
+                indexed knowledge store and answers from that context. */}
             <aside className='app-col app-col-right'>
               <div className='app-panel-header'>AI Assistant</div>
               <div className='app-panel-body app-panel-body-chat'>
-                <AIAssistViewComponent
-                  ref={assistInstance}
-                  cssClass="e-aiassist-chat"
-                  promptPlaceholder="Type a question"
-                  promptSuggestions={aiSuggestions}
-                  promptIconCss="e-icons e-aiassist-chat-icon"
-                  responseIconCss="e-aiassist-chat-icon"
-                  created={chatPanelCreated}
-                  bannerTemplate={() =>
-                    <div className="ai-assist-banner">
-                      <div className="e-icons e-aiassist-page-icon"></div>
-                      <div className="e-aiassist-page-header">How can I help you?</div>
-                    </div>
-                  }
-                  promptRequest={async (args) => {
-                    const prompt = String(args?.prompt || '').trim();
-                    if (!prompt) { args.response = ''; return; }
-                    try {
-                      if (prompt === 'Summarize this document') {
-                        await new Promise(resolve => {
-                          requestAnimationFrame(() => setTimeout(resolve, 10));
-                        });
-                        const documentContent = await getDocumentText(container);
-                        const options = {
-                          messages: [
-                            { role: "system", content: `You are a helpful assistant. Your task is to analyze the provided text and generate short summary. Always respond in proper HTML format, but do not include <html>, <head>, or <body> tags. ${CITATION_RULE}` },
-                            { role: "user", content: documentContent }
-                          ],
-                          model: "gpt-4",
-                        };
-                        const summaryHtml = await getAzureChatAIRequest(options);
-                        args.response = summaryHtml || '<p>No summary available.</p>';
-                        const suggestionsRaw = await getAzureChatAIRequest({
-                          messages: [
-                            { role: "system", content: `You are a helpful assistant. Your task is to analyze the provided text and generate 3 short diverse questions and each question should not exceed 10 words. ${CITATION_RULE}` },
-                            { role: "user", content: documentContent }
-                          ],
-                          model: "gpt-4",
-                        });
-                        if (suggestionsRaw) {
-                          const next = (suggestionsRaw.split(/\d+\.\s*/).filter(x => x.trim() !== "")).map((text, index) => {
-                            return `${index + 1}. ${text.trim()}`;
-                          });
-                          if (next.length) setAiSuggestions(next);
-                        }
-                        
-                      } else {
-                        await new Promise(resolve => {
-                          requestAnimationFrame(() => setTimeout(resolve, 10));
-                        });
-                        const options = {
-                          messages: [
-                            { role: "system", content: `You are a helpful assistant. Use the provided context to answer the user question. Always respond in proper HTML format, but do not include <html>, <head>, or <body> tags. Context:${CITATION_RULE}` },
-                            { role: "user", content: prompt + `Context:${CITATION_RULE}`}
-                          ],
-                          model: "gpt-4",
-                        };
-                        const answerHtml = await getAzureChatAIRequest(options);
-                        var response = String(answerHtml ?? '<p>No answer.</p>');
-                        args.response = response;
-                        assistInstance.current.addPromptResponse(response);
-                      }
-                    } catch (e) {
-                      args.response = `<p class="aiassist-error">AI error: ${e?.message || e}</p>`;
-                    }
-                  }}
-                  responseToolbarSettings={{
-                    items: [
-                      { iconCss: 'e-icons e-copy', tooltip: 'copy' },
-                      { iconCss: 'e-btn-icon e-de-ctnr-new', tooltip: 'insert' }
-                    ],
-                    itemClicked: async (e) => {
-                      const idx = typeof e?.dataIndex === 'number'
-                        ? e.dataIndex
-                        : (assistInstance.current?.prompts?.length ?? 1) - 1;
-                      const resHtml = assistInstance.current?.prompts?.[idx]?.response ?? '';
-                      if (!resHtml) return;
-                      const tmp = document.createElement('div');
-                      tmp.innerHTML = resHtml;
-                      const plainText = (tmp.innerText || '').trim();
-                      const tip = (e?.item?.tooltip || '').toLowerCase();
-                      if (tip === 'copy') {
-                        if (navigator.clipboard && window.ClipboardItem) {
-                          const blobHtml = new Blob([resHtml], { type: 'text/html' });
-                          const blobText = new Blob([plainText], { type: 'text/plain' });
-                          await navigator.clipboard.write([
-                            new ClipboardItem({
-                              'text/html': blobHtml,
-                              'text/plain': blobText
-                            })
-                          ]);
-                        } else {
-                          await navigator.clipboard?.writeText(plainText);
-                        }
-                      } else if (tip === 'insert') {
-                        const docEditor = container?.current?.documentEditor;
-                        if (!docEditor || !resHtml) return;
-                        try {
-                          const res = await fetch(`${SERVICE_URL}LoadString`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ content: resHtml })
-                          });
-                          if (!res.ok) {
-                            throw new Error('LoadString failed: ' + res.statusText);
-                          }
-                          const sfdtText = await res.text();
-                          let sfdt;
-                          try {
-                            sfdt = JSON.parse(sfdtText);
-                          } catch {
-                            // Older server builds may return a non-JSON
-                            // payload that paste() can still consume as a
-                            // string. Fall back rather than abort.
-                            sfdt = sfdtText;
-                          }
-                          try { docEditor.focusIn(); } catch { /* ignore */ }
-                          // Enable track changes so the pasted AI content
-                          // shows up as tracked changes the user can Accept
-                          // or Reject.
-                          try {
-                            docEditor.enableTrackChanges = true;
-                            docEditor.showRevisions = true;
-                          } catch { /* not all builds expose these props */ }
-                          docEditor.editor.paste(sfdt);
-                        } catch (e) {
-                          console.error('Insert assistant response failed:', e);
-                        }
-                      }
-                    }
-                  }}
-                >
-                </AIAssistViewComponent>
+                <div className="rag-chat">
+                  <div ref={ragChatWindowRef} className="rag-chat-window">
+                    {ragMessages.length === 0 ? (
+                      <div className="rag-chat-empty">
+                        Ask a question to start the conversation.
+                      </div>
+                    ) : (
+                      ragMessages.map((m, i) => (
+                        <div
+                          key={i}
+                          className={`rag-message rag-message-${m.sender}${m.loading ? ' rag-message-loading' : ''}`}
+                        >
+                          <div className="rag-bubble">{m.text}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="rag-chat-input-area">
+                    <input
+                      ref={ragQuestionInputRef}
+                      type="text"
+                      className="rag-question-input"
+                      placeholder="Ask a question..."
+                      value={ragQuestion}
+                      disabled={ragIsSending}
+                      onKeyDown={ragHandleEnter}
+                      onChange={(e) => setRagQuestion(e.target.value)}
+                    />
+                    <ButtonComponent
+                      type="button"
+                      className="rag-send-button"
+                      disabled={ragIsSending || !ragQuestion.trim()}
+                      onClick={ragSendQuestion}
+                    >
+                      {ragIsSending ? 'Sending...' : 'Send'}
+                    </ButtonComponent>
+                  </div>
+                </div>
               </div>
             </aside>
           </div>
