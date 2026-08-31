@@ -46,8 +46,6 @@ namespace DOCXEditorAPIServices.Services
     {
         private readonly EmbeddingClient _embeddingClient;
         private readonly ChatClient _chatClient;
-        private readonly string _embeddingDeploymentName;
-        private readonly string _chatDeploymentName;
 
         private readonly string _uploadFolder;
         private readonly string _jsonStorePath;
@@ -75,45 +73,43 @@ namespace DOCXEditorAPIServices.Services
             };
 
         public RagService(
-            IConfiguration configuration,
-            IWebHostEnvironment environment)
+            string azureOpenAIEndpoint,
+            string azureOpenAIKey,
+            string embeddingDeploymentName,
+            string chatDeploymentName,
+            IWebHostEnvironment hostingEnvironment)
         {
-            // Azure OpenAI configuration. The RAG pipeline needs BOTH an
-            // embedding deployment (for vectorizing chunks/questions) and
-            // a chat deployment (for the final grounded answer). These are
-            // read from the AzureOpenAI section of appsettings.json, with
-            // two new keys (EmbeddingDeploymentName, ChatDeploymentName)
-            // added alongside the existing Endpoint / ApiKey used by
-            // AzureOpenAIProvider.
-            string azureOpenAIEndpoint = configuration["AzureOpenAI:Endpoint"]
-                ?? throw new InvalidOperationException("AzureOpenAI:Endpoint is missing.");
+            //if (string.IsNullOrWhiteSpace(azureOpenAIEndpoint))
+            //    throw new InvalidOperationException("AzureOpenAI:Endpoint is missing.");
 
-            string azureOpenAIKey = configuration["AzureOpenAI:ApiKey"]
-                ?? throw new InvalidOperationException("AzureOpenAI:Key is missing.");
+            //if (string.IsNullOrWhiteSpace(azureOpenAIKey))
+            //    throw new InvalidOperationException("AzureOpenAI:ApiKey is missing.");
 
-            _embeddingDeploymentName = configuration["AzureOpenAI:EmbeddingDeploymentName"]
-                ?? throw new InvalidOperationException("AzureOpenAI:EmbeddingDeploymentName is missing.");
+            //if (string.IsNullOrWhiteSpace(embeddingDeploymentName))
+            //    throw new InvalidOperationException("AzureOpenAI:EmbeddingDeploymentName is missing.");
 
-            _chatDeploymentName = configuration["AzureOpenAI:ChatDeploymentName"]
-                ?? throw new InvalidOperationException("AzureOpenAI:ChatDeploymentName is missing.");
+            //if (string.IsNullOrWhiteSpace(chatDeploymentName))
+            //    throw new InvalidOperationException("AzureOpenAI:ChatDeploymentName is missing.");
 
             AzureOpenAIClient azureOpenAIClient = new(
-                new Uri(azureOpenAIEndpoint),
-                new AzureKeyCredential(azureOpenAIKey));
+       new Uri("https://ai272650.openai.azure.com/"), new AzureKeyCredential("2phtOuzowFukgc9zLcrFCCqwzzzExvbh1zmUcoyiWBaIQ9dCxNHYJQQJ99CHAC1i4TkXJ3w3AAABACOGQYke"));
+            _embeddingClient = azureOpenAIClient.GetEmbeddingClient("text-embedding-3-small");
 
-            _embeddingClient = azureOpenAIClient.GetEmbeddingClient(_embeddingDeploymentName);
-            _chatClient = azureOpenAIClient.GetChatClient(_chatDeploymentName);
+
+            AzureOpenAIClient azureOpenAIClient1 = new(new Uri("https://openainew-272650.openai.azure.com/"), new AzureKeyCredential("7jvX97fTC1MppzLUMIMlcpoYnn6I1orGiUSZfoANGSZr0Soc30HPJQQJ99CHACYeBjFXJ3w3AAABACOGvoLA"));
+            _chatClient = azureOpenAIClient1.GetChatClient("gpt-5.1");
+
 
             // ------------------------------------------------------------
             // Local storage root: wwwroot/rag
             //   wwwroot/rag/uploads/                <- raw uploaded files
             //   wwwroot/rag/store/knowledge-store.json <- vector store
             // ------------------------------------------------------------
-            string webRoot = environment.WebRootPath;
+            string webRoot = hostingEnvironment.WebRootPath;
 
             if (string.IsNullOrWhiteSpace(webRoot))
             {
-                webRoot = Path.Combine(environment.ContentRootPath, "wwwroot");
+                webRoot = Path.Combine(hostingEnvironment.ContentRootPath, "wwwroot");
             }
 
             string ragRoot = Path.Combine(webRoot, "rag");
@@ -145,24 +141,12 @@ namespace DOCXEditorAPIServices.Services
         /// and upserts the resulting records into the local JSON store
         /// (replacing any previous records for the same source file).
         /// </summary>
-        public async Task IndexUploadedFileAsync(IFormFile file, string safeFileName)
+        public async Task GenerateChunk(MemoryStream memoryStream)
         {
-            string filePath = Path.Combine(_uploadFolder, safeFileName);
-
-            // Save uploaded file locally
-            await using (FileStream stream = new(
-                filePath,
-                FileMode.Create,
-                FileAccess.Write,
-                FileShare.None))
-            {
-                await file.CopyToAsync(stream);
-            }
-
             // Chunk using current Syncfusion RAG chunking library.
             // Dispatches to Word / PDF / PowerPoint / Excel / Markdown
             // chunking options based on file extension.
-            IReadOnlyList<IChunk> chunks = ChunkDocument(filePath);
+            IReadOnlyList<IChunk> chunks = ChunkDocument(memoryStream);
 
             // Convert to local records with embeddings
             List<LocalChunkRecord> records = new();
@@ -172,13 +156,14 @@ namespace DOCXEditorAPIServices.Services
                 string searchableText =
                     BuildSearchableText(
                         chunk,
-                        safeFileName);
+                        "Document.docx");
 
                 float[] embedding =
                     await GenerateEmbeddingAsync(
                         searchableText);
-
+                string safeFileName = "Document.docx";
                 string fileExtension = chunk.Metadata?.FileType ?? Path.GetExtension(safeFileName);
+                
 
                 records.Add(new LocalChunkRecord
                 {
@@ -196,7 +181,7 @@ namespace DOCXEditorAPIServices.Services
 
             // Merge into local JSON store (replaces prior records for
             // this source file so re-uploads don't duplicate chunks).
-            await UpsertLocalChunkStoreAsync(records, safeFileName);
+            await UpsertLocalChunkStoreAsync(records, "Document.docx");
         }
 
         /// <summary>
@@ -233,6 +218,7 @@ namespace DOCXEditorAPIServices.Services
         /// </summary>
         public async Task<string> AskQuestionAsync(string question)
         {
+
             List<LocalChunkRecord> chunks = await RetrieveRelevantChunksAsync(question, topK: 10);
 
             if (chunks.Count == 0)
@@ -265,10 +251,9 @@ Rules:
 2. Do not invent information.
 3. If the answer is not available in the context, say:
    "I could not find that information in the knowledge base."
-4. Always mention the source file name.
-5. Mention the section path if available.
-6. If multiple chunks are relevant, summarize them clearly.
-7. Keep the answer concise but complete.
+4. Mention the section path if available.
+5. If multiple chunks are relevant, summarize them clearly.
+6. Keep the answer concise but complete.
 
 Context:
 
@@ -370,55 +355,18 @@ Question:
         /// dispatching to the appropriate SourceChunkingOptions subclass
         /// based on the file extension.
         /// </summary>
-        private IReadOnlyList<IChunk> ChunkDocument(string filePath)
+        private IReadOnlyList<IChunk> ChunkDocument(MemoryStream stream)
         {
-            if (!File.Exists(filePath))
-            {
-                throw new FileNotFoundException($"Input document not found: {filePath}");
-            }
 
             var chunkingService = new ChunkingService();
 
-            string extension =
-                Path.GetExtension(filePath)
-                    .ToLowerInvariant();
 
-            SourceChunkingOptions? sourceOptions =
-                extension switch
-                {
-                    ".doc" or ".docx" =>
-                        new WordChunkingOptions
-                        {
-                            ChunkingMode = WordChunkingMode.Auto
-                        },
 
-                    ".pdf" =>
-                        new PdfChunkingOptions
-                        {
-                            ChunkingMode = PdfChunkingMode.Auto
-                        },
-
-                    ".ppt" or ".pptx" or ".pptm" =>
-                        new PowerPointChunkingOptions
-                        {
-                            ChunkingMode = PowerPointChunkingMode.Auto
-                        },
-
-                    ".xlsx" or ".xls" or ".xlsm" or ".xlsb" =>
-                        new ExcelChunkingOptions
-                        {
-                            ChunkingMode = ExcelChunkingMode.Auto
-                        },
-
-                    ".md" or ".markdown" =>
-                        new MarkdownChunkingOptions
-                        {
-                            ChunkingMode = MarkdownChunkingMode.Auto
-                        },
-
-                    _ => null
-                };
-
+            SourceChunkingOptions? sourceOptions = new WordChunkingOptions
+            {
+                ChunkingMode = WordChunkingMode.Auto
+            };
+                
             var options = new ChunkingOptions
             {
                 MaxTokens = 450,
@@ -430,7 +378,7 @@ Question:
 
             IChunkingResult result =
                 chunkingService.Chunk(
-                    filePath,
+                    stream, "Document.docx",
                     options);
 
             return result.Chunks;

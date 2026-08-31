@@ -80,9 +80,14 @@ namespace DOCXEditorAPIServices.Controllers
         [HttpPost]
         [EnableCors("AllowAllOrigins")]
         [Route("SaveSection")]
-        public IActionResult SaveSection([FromForm] string sectionName, IFormCollection files)
+        // NOTE: The parameter is intentionally named `form` (not `files`).
+        // IFormCollection binding ignores the parameter name — it always
+        // binds the whole request form — but a parameter named "files"
+        // collides with the IFormCollection.Files property and raises
+        // the MVC1004 model-binding warning.
+        public IActionResult SaveSection([FromForm] string sectionName, IFormCollection form)
         {
-            if (files.Files == null || files.Files.Count == 0)
+            if (form.Files == null || form.Files.Count == 0)
             {
                 return BadRequest(new { Message = "No file uploaded." });
             }
@@ -95,7 +100,7 @@ namespace DOCXEditorAPIServices.Controllers
             {
                 Directory.CreateDirectory(SectionsDataFolder);
 
-                IFormFile file = files.Files[0];
+                IFormFile file = form.Files[0];
                 using Stream stream = new MemoryStream();
                 file.CopyTo(stream);
                 stream.Position = 0;

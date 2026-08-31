@@ -1,12 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net.Http;
-using System.Threading.Tasks;
-using BitMiracle.LibTiff.Classic;
+﻿using BitMiracle.LibTiff.Classic;
 using DOCXEditorAPIServices.Models;
 using DOCXEditorAPIServices.Providers;
+using DOCXEditorAPIServices.Services;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -15,6 +10,12 @@ using Newtonsoft.Json.Linq;
 using SkiaSharp;
 using Syncfusion.EJ2.DocumentEditor;
 using Syncfusion.EJ2.SpellChecker;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
 using WDocument = Syncfusion.DocIO.DLS.WordDocument;
 using WFormatType = Syncfusion.DocIO.FormatType;
 
@@ -29,14 +30,18 @@ namespace DOCXEditorAPIServices.Controllers
         private readonly IWebHostEnvironment _hostingEnvironment;
         private readonly string _path;
         private readonly AzureOpenAIProvider _azureOpenAIProvider;
+        private readonly RagService _ragService;
 
-        public DocumentEditorController(IWebHostEnvironment hostingEnvironment, AzureOpenAIProvider azureOpenAIProvider)
+        public DocumentEditorController(
+            IWebHostEnvironment hostingEnvironment,
+            AzureOpenAIProvider azureOpenAIProvider,
+            RagService ragService)
         {
             _hostingEnvironment = hostingEnvironment;
             _path = Startup.path;
             _azureOpenAIProvider = azureOpenAIProvider;
+            _ragService = ragService;
         }
-
         /// <summary>
         /// Receives chat messages from the client application and forwards them to Azure OpenAI.
         /// </summary>
@@ -129,22 +134,30 @@ namespace DOCXEditorAPIServices.Controllers
             }
         }
 
+        /// <summary>
+        /// Converts the supplied HTML string into SFDT so it can be opened
+        /// in the editor.
+        /// </summary>
         [AcceptVerbs("Post")]
         [HttpPost]
         [EnableCors("AllowAllOrigins")]
         [Route("LoadString")]
-        public string LoadString([FromBody]InputParameter data)
+        public string LoadString([FromBody] InputParameter data)
         {
             // You can also load HTML file/string from server side.
-            Syncfusion.EJ2.DocumentEditor.WordDocument document = Syncfusion.EJ2.DocumentEditor.WordDocument.LoadString(data.content, FormatType.Html); // Convert the HTML to SFDT format.
+            Syncfusion.EJ2.DocumentEditor.WordDocument document =
+                Syncfusion.EJ2.DocumentEditor.WordDocument.LoadString(data.content, FormatType.Html);
             string json = Newtonsoft.Json.JsonConvert.SerializeObject(document);
             document.Dispose();
             return json;
         }
 
+        /// <summary>
+        /// Request body for POST /LoadString.
+        /// </summary>
         public class InputParameter
         {
-            public string content {get; set; }
+            public string content { get; set; } = string.Empty;
         }
 
         // Converting Tiff to Png image using Bitmiracle https://www.nuget.org/packages/BitMiracle.LibTiff.NET
@@ -325,11 +338,14 @@ namespace DOCXEditorAPIServices.Controllers
             }
         }
 
+        /// <summary>
+        /// Request body for POST /MailMerge.
+        /// </summary>
         public class ExportData
         {
-            public string fileName { get; set; }
-            public string documentData { get; set; }
-            public string mailMergeData { get; set; }
+            public string fileName { get; set; } = string.Empty;
+            public string documentData { get; set; } = string.Empty;
+            public string mailMergeData { get; set; } = string.Empty;
         }
 
         #region Helper methods for Mail Merge JSON Data
@@ -341,8 +357,8 @@ namespace DOCXEditorAPIServices.Controllers
             //Reads the JSON object from JSON file.
             JObject jsonObject = JObject.Parse(mailMergeData);
             //Converts JSON object to Dictionary.
-            IDictionary<string, object> data = GetData(jsonObject);
-            return data.Values.First() as List<object>;
+            IDictionary<string, object?> data = GetData(jsonObject);
+            return data.Values.First() as List<object> ?? new List<object>();
         }
 
         /// <summary>
@@ -350,12 +366,12 @@ namespace DOCXEditorAPIServices.Controllers
         /// </summary>
         /// <param name="jsonObject">JSON object.</param>
         /// <returns>Dictionary of data.</returns>
-        private static IDictionary<string, object> GetData(JObject jsonObject)
+        private static IDictionary<string, object?> GetData(JObject jsonObject)
         {
-            Dictionary<string, object> dictionary = new Dictionary<string, object>();
+            Dictionary<string, object?> dictionary = new Dictionary<string, object?>();
             foreach (var item in jsonObject)
             {
-                object keyValue = null;
+                object? keyValue = null;
                 if (item.Value is JArray)
                     keyValue = GetData((JArray)item.Value);
                 else if (item.Value is JToken)
@@ -374,10 +390,10 @@ namespace DOCXEditorAPIServices.Controllers
             List<object> jArrayItems = new List<object>();
             foreach (var item in jArray)
             {
-                object keyValue = null;
+                object? keyValue = null;
                 if (item is JObject)
                     keyValue = GetData((JObject)item);
-                jArrayItems.Add(keyValue);
+                jArrayItems.Add(keyValue!);
             }
             return jArrayItems;
         }
@@ -591,20 +607,51 @@ namespace DOCXEditorAPIServices.Controllers
             return SaveDocument(document, format, name);
         }
 
+        /// <summary>
+        /// Answers a question about the document currently open in the
+        /// editor, using the RAG pipeline (retrieval-augmented generation).
+        ///
+        /// Chunking strategy (avoids re-chunking on every question):
+        ///   - IsContentChanged = true: the live document has changed since
+        ///     it was last indexed, so the SFDT is converted to DOCX and
+        ///     re-chunked + re-embedded (GenerateChunk) before answering.
+        ///   - IsContentChanged = false: the document is unchanged, so the
+        ///     question is answered directly from the chunks already
+        ///     persisted in the JSON knowledge store.
+        /// </summary>
         [AcceptVerbs("Post")]
         [HttpPost]
         [EnableCors("AllowAllOrigins")]
-        [Route("ExportAsStream")]
-        public Stream ExportAsStream([FromBody] SaveParameter data)
+        [Route("AskQuestion")]
+        [ProducesResponseType(typeof(RagChatResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(RagChatErrorResponse), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> AskQuestion([FromBody] QuestionParameter? data)
         {
-            string name = data.FileName;
-            string format = RetrieveFileType(name);
-            if (string.IsNullOrEmpty(name))
+            if (data == null || string.IsNullOrWhiteSpace(data.Question))
             {
-                name = "Document1.doc";
+                return BadRequest(new RagChatErrorResponse
+                {
+                    Error = "Question is required."
+                });
             }
-            WDocument document = WordDocument.Save(data.Content);
-            return SaveDocument(document, format);
+
+            // Re-chunk only when the document content changed since it
+            // was last indexed. Unchanged content is answered from the
+            // chunks already stored in the JSON knowledge store.
+            if (data.IsContentChanged && !string.IsNullOrWhiteSpace(data.SfdtContent))
+            {
+                WDocument document = WordDocument.Save(data.SfdtContent);
+                MemoryStream stream = SaveDocument(document, ".docx");
+
+                await _ragService.GenerateChunk(stream);
+            }
+
+            string answer = await _ragService.AskQuestionAsync(data.Question);
+
+            return Ok(new RagChatResponse
+            {
+                Answer = answer
+            });
         }
 
         private string RetrieveFileType(string name)
@@ -613,6 +660,30 @@ namespace DOCXEditorAPIServices.Controllers
             string format = index > -1 && index < name.Length - 1 ?
                 name.Substring(index) : ".doc";
             return format;
+        }
+
+        /// <summary>
+        /// Request body for POST /AskQuestion.
+        /// </summary>
+        public class QuestionParameter
+        {
+            /// <summary>
+            /// Serialized SFDT of the document currently open in the editor.
+            /// Only required when <see cref="IsContentChanged"/> is true.
+            /// </summary>
+            public string SfdtContent { get; set; } = string.Empty;
+
+            /// <summary>
+            /// True when the document content changed since it was last
+            /// indexed, so the server re-chunks it before answering. When
+            /// false, the answer comes from the already-persisted chunks.
+            /// </summary>
+            public bool IsContentChanged { get; set; }
+
+            /// <summary>
+            /// The user's question to answer from the document.
+            /// </summary>
+            public string Question { get; set; } = string.Empty;
         }
 
         public class SaveParameter
@@ -640,9 +711,9 @@ namespace DOCXEditorAPIServices.Controllers
             return SaveDocument(document, format, fileName);
         }
 
-        private Stream SaveDocument(WDocument document, string format)
+        private MemoryStream SaveDocument(WDocument document, string format)
         {
-            Stream docStream = new MemoryStream();
+            MemoryStream docStream = new MemoryStream();
             WFormatType type = GetWFormatType(format);
             document.Save(docStream, type);
             document.Close();

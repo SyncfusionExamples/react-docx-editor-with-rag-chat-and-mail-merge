@@ -847,14 +847,21 @@ const onPreviewWithData = useCallback(async () => {
   // ragMessages is a small array of { text, sender } bubbles so React
   // owns the chat window DOM (no imperative appendChild needed).
   const [ragMessages, setRagMessages] = useState([]);
+  // Last SFDT that the server has chunked/indexed. Used to compute
+  // isContentChanged on each Send so the server only re-chunks
+  // (GenerateChunk) when the document actually changed since the
+  // previous question.
+  const lastIndexedSfdtRef = useRef(null);
 
   // The AI Chat window is always visible in this layout; AIPopup calls
   // onShowChatPane when its own close handler fires, so the stub stays.
   const showChatPane = () => { /* no-op: chat panel is always visible */ };
 
-  // RAG chat: POST { question } to /api/chat. The server retrieves the
-  // top-K relevant chunks from the indexed knowledge store and asks
-  // Azure OpenAI to answer using only that context.
+  // RAG chat: POST { SfdtContent, Question, IsContentChanged } to
+  // /api/DocumentEditor/AskQuestion. The server converts the live
+  // document (SFDT) to DOCX, re-chunks it when the content changed
+  // (IsContentChanged), retrieves the top-K relevant chunks, and asks
+  // Azure OpenAI to answer strictly from that context.
   const ragSendQuestion = useCallback(async () => {
     const question = ragQuestion.trim();
     if (!question) return;
@@ -866,23 +873,49 @@ const onPreviewWithData = useCallback(async () => {
       { text: 'Thinking...', sender: 'assistant', loading: true }
     ]));
     setRagQuestion('');
+
+    // Collect the current editor document as SFDT so the server chunks
+    // and answers from the LIVE document (not just a static upload).
+    let sfdtContent;
     try {
-      const response = await fetch(`${API_BASE_URL}/api/chat`, {
+      const editor = container.current?.documentEditor;
+      // serialize() returns the current SFDT JSON string. Wrap in
+      // try/catch because the editor can be empty early in startup.
+      sfdtContent = editor?.serialize ? editor.serialize() : '';
+    } catch (sErr) {
+      console.warn('Could not serialize editor content:', sErr);
+      sfdtContent = '';
+    }
+
+    // Tell the server whether the document changed since the last time
+    // it chunked this document. First send (or any change) => true, so
+    // the server calls GenerateChunk with the fresh DOCX before
+    // answering; an unchanged document reuses the stored chunks.
+    const isContentChanged = sfdtContent !== lastIndexedSfdtRef.current;
+
+    try {
+      const response = await fetch(`${SERVICE_URL}AskQuestion`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question })
+        body: JSON.stringify({
+          sfdtContent, // editor's serialized SFDT (live document)
+          question,
+          isContentChanged
+        })
       });
       // Replace the "Thinking…" bubble with the real answer (or error).
       if (!response.ok) {
         let message = 'Chat request failed.';
         try {
           const err = await response.json();
-          message = err.error || err.Error || message;
+          message = err.error || err.Error || err.answer || err.Answer || message;
         } catch { /* ignore */ }
         throw new Error(message);
       }
       const result = await response.json();
       const answer = result.answer || result.Answer || '';
+      // Remember the indexed SFDT so the next send can diff against it.
+      lastIndexedSfdtRef.current = sfdtContent;
       setRagMessages(prev => {
         const next = prev.slice();
         // Drop the trailing "Thinking…" bubble and append the answer.
