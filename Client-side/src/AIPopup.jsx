@@ -63,6 +63,9 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
   const [stopVisible, setStopVisible] = useState(false);
   const [stopPos, setStopPos] = useState({ x: 0, y: 0 });
   const canceledRef = useRef(false);
+  const onReplaceRef = useRef(null);
+  const onCancelRef = useRef(null);
+  const onRegenerateRef = useRef(null);
   const gearHeaderRef = useRef(null);
   const cmSettingsRef = useRef(null);
   const [genVisible, setGenVisible] = useState(false);
@@ -426,18 +429,42 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
         if (!isRegenerate && !sourceText) { setIsLoading(false); return; }
         options = buildPrompt(AiTask.Generate, sourceText, isRegenerate, { tone, format, length });
         setTimeout(async () => {
-          out = await getAzureChatAIRequest(options);
-          out = out.replace("```html\n", "").replace("\n```", "");
-          insertContent(out, isRegenerate);
+          try {
+            out = await getAzureChatAIRequest(options);
+            if (typeof out !== 'string' || !out.trim()) {
+              throw new Error('Empty response from AI service.');
+            }
+            out = out.replace("```html\n", "").replace("\n```", "");
+            insertContent(out, isRegenerate);
+          } catch (genErr) {
+            // The Generate path runs inside a setTimeout so any thrown
+            // error would otherwise be swallowed by the timer. Surface
+            // it the same way the inline paths do and tear down the
+            // stop dialog + spinner so the UI is not stuck.
+            console.error('Generate request failed:', genErr);
+            if (!canceledRef.current) {
+              alert('AI error: ' + (genErr?.message || genErr));
+            }
+            closeStopDialog();
+            hideSpinner(document.getElementById('spinner-container'));
+            setIsLoading(false);
+            canceledRef.current = false;
+          }
         }, 1000);
       } else {
         sourceText = getSelectionText();
-        if (!sourceText || sourceText.trim().length < 3) { setIsLoading(false); return; }
+        if (!sourceText || sourceText.trim().length < 3) {
+          setIsLoading(false);
+          return;
+        }
         if (task === AiTask.Rephrase) {
           const userHint = isRegenerate ? '' : (userPrompt?.trim() || '');
           for (var i = 0; i < 3; i++) {
             options = buildPrompt(AiTask.Rephrase, sourceText, isRegenerate, { tone, format, length, userHint });
             out = await getAzureChatAIRequest(options);
+            if (typeof out !== 'string' || !out.trim()) {
+              throw new Error('Empty response from AI service.');
+            }
             out = out.replace("```html\n", "").replace("\n```", "");
             if (!aiResults.includes(out)) {
               aiResults.push(out);
@@ -447,12 +474,18 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
         else if (task === AiTask.Grammar) {
           options = buildPrompt(AiTask.Grammar, sourceText, isRegenerate, { checks: checks });
           out = await getAzureChatAIRequest(options);
+          if (typeof out !== 'string' || !out.trim()) {
+            throw new Error('Empty response from AI service.');
+          }
           out = out.replace("```html\n", "").replace("\n```", "");
         }
         else {
           var toLang = toLanguage || translateTo;
           options = buildPrompt(AiTask.Translate, sourceText, false, { fromLang: 'English', toLang: toLang });
           out = await getAzureChatAIRequest(options);
+          if (typeof out !== 'string' || !out.trim()) {
+            throw new Error('Empty response from AI service.');
+          }
           out = out.replace("```html\n", "").replace("\n```", "");
         }
         out = aiResults.length > 0 ? aiResults[0] : out;
@@ -471,7 +504,32 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
         hideSpinner(document.getElementById('spinner-container'));
       }
     } catch (e) {
-      if (!canceledRef.current) alert('AI error: ' + (e?.message || e));
+      // Any thrown error from the Rephrase / Translate / Grammar paths
+      // (including the explicit "Empty response" throws above) lands
+      // here. We MUST tear down the spinner and close the smart-editor
+      // dialog so the user is not trapped behind a permanently spinning
+      // overlay. The catch was previously only an alert, leaving the
+      // spinner running and the dialog visible until the user manually
+      // closed it.
+      console.error('AI request failed:', e);
+      if (!canceledRef.current) {
+        alert('AI error: ' + (e?.message || e));
+      }
+      hideSpinner(document.getElementById('spinner-container'));
+      // Force-close every dialog that this task may have opened. The
+      // Rephrase / Translate / Grammar flows open the smart-editor
+      // dialog via setSmartVisible(true); the spinner lives in the
+      // same dialog. Closing the dialog also tears down the spinner
+      // element so no orphaned spinner keeps spinning.
+      setSmartVisible(false);
+      setStopVisible(false);
+      setGenVisible(false);
+      setInHtml('');
+      setOutHtml('');
+      setSuggestions([]);
+      setCurrentIndex(0);
+      aiResults = [];
+      canceledRef.current = false;
     } finally {
       setIsLoading(false);
     }
@@ -701,35 +759,6 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
     </div>
   );
 
-  const smartFooterTemplate = () => (
-    <div style={{ display: 'inline-flex' }}>
-      <ButtonComponent cssClass="e-primary" disabled={isLoading} onClick={onReplace}>
-        Replace
-      </ButtonComponent>
-      {popupType === AiTask.Rephrase && (
-        <ButtonComponent
-          cssClass="e-outline e-regenerate-btn"
-          iconCss="e-icons e-repeat"
-          onClick={() => { showSpinner(document.getElementById('spinner-container')); setTimeout(() => runTask(AiTask.Rephrase, true), 10); }}
-          isPrimary
-        >
-          Regenerate
-        </ButtonComponent>
-      )}
-      {popupType === AiTask.Grammar && (
-        <ButtonComponent
-          cssClass="e-outline e-regenerate-btn"
-          iconCss="e-icons e-repeat"
-          onClick={() => { showSpinner(document.getElementById('spinner-container')); setTimeout(() => runTask(AiTask.Grammar, true), 10); }}
-          isPrimary
-        >
-          Regenerate
-        </ButtonComponent>
-      )}
-      <ButtonComponent onClick={() => setSmartVisible(false)}>Cancel</ButtonComponent>
-    </div>
-  );
-
   const positionChatFabByHelper = () => {
     const position = window?.getAIChatBtnPosition?.();
     if (!position) return;
@@ -747,6 +776,24 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
     });
     return () => window.removeEventListener('resize', positionChatFabByHelper);
   }, []);
+
+  // Keep the handler refs in sync with the latest closures every
+  // render. The body-rendered buttons below use these refs as their
+  // onClick so the latest implementation is always called (no stale
+  // closure issue). The buttons live in the dialog body (not in
+  // `footerTemplate`) so React's normal event delegation handles the
+  // click — no first-click-lost problem.
+  onReplaceRef.current = onReplace;
+  onCancelRef.current = () => setSmartVisible(false);
+  onRegenerateRef.current = () => {
+    showSpinner(document.getElementById('spinner-container'));
+    const task = popupType === AiTask.Rephrase ? AiTask.Rephrase : AiTask.Grammar;
+    setTimeout(() => runTask(task, true), 10);
+  };
+
+  useEffect(() => {
+    // Reserved for future per-dialog lifecycle hooks.
+  }, [smartVisible]);
 
   const positionAssistFabInitial = () => {
     try {
@@ -1136,7 +1183,6 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
         visible={smartVisible}
         target={'#ai-assist'}
         header={smartHeaderTemplate}
-        footerTemplate={smartFooterTemplate}
         showCloseIcon={true}
         isModal={true}
         width={'70%'}
@@ -1198,6 +1244,41 @@ export default function AIPopup({ editorRef, onShowChatPane, chatOpen, assistIni
             </PanesDirective>
           </SplitterComponent>
           <div id="spinner-container" className="spinner-target"></div>
+          <div className="ai-smart-footer-inline">
+            <ButtonComponent
+              cssClass="e-primary ai-smart-replace-btn"
+              disabled={isLoading}
+              onClick={() => onReplaceRef.current && onReplaceRef.current()}
+            >
+              Replace
+            </ButtonComponent>
+            {popupType === AiTask.Rephrase && (
+              <ButtonComponent
+                cssClass="e-outline e-regenerate-btn ai-smart-regenerate-btn"
+                iconCss="e-icons e-repeat"
+                onClick={() => onRegenerateRef.current && onRegenerateRef.current()}
+                isPrimary
+              >
+                Regenerate
+              </ButtonComponent>
+            )}
+            {popupType === AiTask.Grammar && (
+              <ButtonComponent
+                cssClass="e-outline e-regenerate-btn ai-smart-regenerate-btn"
+                iconCss="e-icons e-repeat"
+                onClick={() => onRegenerateRef.current && onRegenerateRef.current()}
+                isPrimary
+              >
+                Regenerate
+              </ButtonComponent>
+            )}
+            <ButtonComponent
+              cssClass="ai-smart-cancel-btn"
+              onClick={() => onCancelRef.current && onCancelRef.current()}
+            >
+              Cancel
+            </ButtonComponent>
+          </div>
         </div>
       </DialogComponent>
 

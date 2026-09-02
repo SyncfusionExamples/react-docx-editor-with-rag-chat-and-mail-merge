@@ -29,15 +29,9 @@ namespace DOCXEditorAPIServices.Providers
             // Prefer the dedicated chat resource (ChatEndpoint/ChatApiKey/
             // ChatDeploymentName). Fall back to the shared Endpoint/ApiKey/
             // DeploymentName keys when the chat-specific keys are missing.
-            string chatEndpoint = string.IsNullOrWhiteSpace(_settings.ChatEndpoint)
-                ? _settings.Endpoint
-                : _settings.ChatEndpoint;
-            string chatApiKey = string.IsNullOrWhiteSpace(_settings.ChatApiKey)
-                ? _settings.ApiKey
-                : _settings.ChatApiKey;
-            string chatDeploymentName = string.IsNullOrWhiteSpace(_settings.ChatDeploymentName)
-                ? _settings.DeploymentName
-                : _settings.ChatDeploymentName;
+            string chatEndpoint = _settings.ChatEndpoint;
+            string chatApiKey = _settings.ChatApiKey;
+            string chatDeploymentName = _settings.ChatDeploymentName;
 
             if (string.IsNullOrWhiteSpace(chatEndpoint) ||
                 string.IsNullOrWhiteSpace(chatApiKey) ||
@@ -97,7 +91,6 @@ namespace DOCXEditorAPIServices.Providers
                 }
             }
 
-            
             OpenAI.Chat.ChatCompletion completion = await chatClient.CompleteChatAsync(chatMessages, options);
 
             return completion.Content.Count > 0 ? completion.Content[0].Text : string.Empty;
@@ -106,13 +99,6 @@ namespace DOCXEditorAPIServices.Providers
 
     public class AzureOpenAIOptions
     {
-        public string Endpoint { get; set; } = string.Empty;
-
-        public string ApiKey { get; set; } = string.Empty;
-
-        public string DeploymentName { get; set; } = string.Empty;
-
-        // Dedicated chat resource (preferred for chat completions).
         public string ChatEndpoint { get; set; } = string.Empty;
 
         public string ChatApiKey { get; set; } = string.Empty;

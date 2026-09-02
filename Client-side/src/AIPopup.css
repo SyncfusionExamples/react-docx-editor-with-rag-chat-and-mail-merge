@@ -119,8 +119,21 @@
   padding: 16px 20px 16px 20px;
 }
 
-.e-smart-editor-dialog .e-splitter.e-splitter-vertical {
-  border: none;
+/* Inline footer that holds the Replace / Regenerate / Cancel buttons
+   for the smart-editor dialog. Rendered inside the dialog body (not
+   via the Syncfusion `footerTemplate` prop — see AIPopup.jsx) so the
+   buttons stay in the regular React tree and `onClick` fires on the
+   first click. Matches the original footer-content padding so the
+   visual layout is unchanged. */
+.e-smart-editor-dialog .ai-smart-footer-inline {
+    display: inline-flex;
+    gap: 8px;
+    padding: 14px 16px 12px 16px;
+    border-top: 1px solid #e0e6ed;
+    background: #f8fafc;
+    width: 100%;
+    box-sizing: border-box;
+    justify-content: flex-end;
 }
 
 .e-ai-chat-btn::before,

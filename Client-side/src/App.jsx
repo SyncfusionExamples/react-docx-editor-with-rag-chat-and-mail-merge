@@ -8,7 +8,7 @@ import AIPopup from './AIPopup.jsx';
 import './editor-helpers.js';
 import './App.css';
 import { L10n } from "@syncfusion/ej2-base";
-import { SERVICE_URL, API_BASE_URL } from './service-config.js';
+import { SERVICE_URL } from './service-config.js';
 
 DocumentEditorContainerComponent.Inject(Ribbon);
 
@@ -20,7 +20,7 @@ L10n.load({
   }
 });
 
-const SAMPLE_TITLE = 'React DOCX Editor with AI Capababilities';
+const SAMPLE_TITLE = 'Mail Merge, AI-Powered Editing and RAG Chat in React DOCX Editor';
 
 export const App = () => {
   const container = useRef(null);
